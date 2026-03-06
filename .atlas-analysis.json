@@ -1,0 +1,155 @@
+{
+  "projectType": "framework",
+  "projectName": "LangChain.js",
+  "projectDescription": "A TypeScript framework for building LLM-powered applications with composable components and agent orchestration.",
+  "theme": "aspen",
+  "primaryColor": "#060814",
+  "lightColor": "#7ccafa",
+  "darkColor": "#3c5c7c",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "core-concepts/architecture",
+              "core-concepts/runnables",
+              "core-concepts/messages",
+              "core-concepts/chat-models",
+              "core-concepts/agents",
+              "core-concepts/tools",
+              "core-concepts/prompts"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/building-agents",
+              "guides/working-with-chat-models",
+              "guides/creating-tools",
+              "guides/prompt-engineering",
+              "guides/memory-and-history",
+              "guides/retrieval",
+              "guides/streaming",
+              "guides/callbacks-and-tracing"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/overview",
+              "integrations/chat-models",
+              "integrations/embeddings",
+              "integrations/vector-stores",
+              "integrations/document-loaders"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/contributing",
+              "development/creating-integrations",
+              "development/testing",
+              "development/monorepo-structure"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core",
+            "pages": [
+              "api/core/runnables",
+              "api/core/messages",
+              "api/core/chat-models",
+              "api/core/embeddings",
+              "api/core/tools",
+              "api/core/prompts",
+              "api/core/output-parsers",
+              "api/core/callbacks"
+            ]
+          },
+          {
+            "group": "LangChain",
+            "pages": [
+              "api/langchain/agents",
+              "api/langchain/chat-models",
+              "api/langchain/stores",
+              "api/langchain/hub"
+            ]
+          },
+          {
+            "group": "Community",
+            "pages": [
+              "api/community/overview",
+              "api/community/document-loaders",
+              "api/community/vector-stores",
+              "api/community/retrievers"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/utilities/text-splitters",
+              "api/utilities/testing",
+              "api/utilities/context"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Agent engineering platform with LangGraph integration",
+    "Composable Runnable interface for chaining components",
+    "Universal chat model interface with 20+ provider integrations",
+    "Structured tools and function calling support",
+    "Prompt templates and prompt engineering utilities",
+    "Memory and chat history management",
+    "Vector stores and retrieval-augmented generation (RAG)",
+    "Document loaders and text splitters",
+    "Streaming support for real-time responses",
+    "Callbacks and tracing with LangSmith integration",
+    "Multi-environment support (Node.js, Browser, Deno, Cloudflare Workers)",
+    "Monorepo architecture with modular packages"
+  ],
+  "publicApiSurface": [
+    "initChatModel",
+    "createAgent",
+    "tool",
+    "Runnable",
+    "RunnableSequence",
+    "RunnableLambda",
+    "BaseMessage",
+    "AIMessage",
+    "HumanMessage",
+    "SystemMessage",
+    "ToolMessage",
+    "BaseChatModel",
+    "StructuredTool",
+    "DynamicTool",
+    "ChatPromptTemplate",
+    "PromptTemplate",
+    "BaseRetriever",
+    "VectorStore",
+    "Embeddings",
+    "Document",
+    "TextSplitter",
+    "BaseDocumentLoader",
+    "InMemoryStore",
+    "CallbackManager",
+    "BaseCallbackHandler"
+  ]
+}
