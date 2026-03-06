@@ -1,0 +1,666 @@
+---
+title: Prompt Engineering
+description: Learn techniques and best practices for writing effective prompts in LangChain.js
+---
+
+## Introduction
+
+Prompt engineering is the art and science of crafting inputs that guide language models to produce desired outputs. Well-designed prompts can dramatically improve model performance, accuracy, and reliability.
+
+LangChain.js provides powerful tools for creating, managing, and reusing prompts across your applications.
+
+## Quick Start
+
+```typescript
+import { PromptTemplate } from "@langchain/core/prompts";
+import { ChatOpenAI } from "@langchain/openai";
+
+const template = PromptTemplate.fromTemplate(
+  "You are a {role}. {task}\n\nContext: {context}"
+);
+
+const prompt = await template.format({
+  role: "helpful assistant",
+  task: "Summarize the following text",
+  context: "LangChain is a framework for building LLM applications..."
+});
+
+const model = new ChatOpenAI({ model: "gpt-4o" });
+const response = await model.invoke(prompt);
+```
+
+## Prompt Templates
+
+### Basic String Templates
+
+Use f-string syntax for variable interpolation:
+
+```typescript
+import { PromptTemplate } from "@langchain/core/prompts";
+
+const template = PromptTemplate.fromTemplate(
+  "Tell me a {adjective} joke about {topic}"
+);
+
+const prompt = await template.format({
+  adjective: "funny",
+  topic: "programming"
+});
+// "Tell me a funny joke about programming"
+```
+
+### Chat Prompt Templates
+
+Structure conversations with system, user, and assistant messages:
+
+```typescript
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+
+const chatPrompt = ChatPromptTemplate.fromMessages([
+  ["system", "You are a helpful {role} who {style}."],
+  ["human", "{input}"],
+  ["ai", "I understand. Let me help you with that."],
+  ["human", "{follow_up}"]
+]);
+
+const messages = await chatPrompt.formatMessages({
+  role: "coding assistant",
+  style: "writes clean, documented code",
+  input: "I need help with a Python function",
+  follow_up: "It should calculate fibonacci numbers"
+});
+```
+
+### Partial Prompts
+
+Pre-fill some variables and leave others for later:
+
+```typescript
+import { PromptTemplate } from "@langchain/core/prompts";
+
+const template = PromptTemplate.fromTemplate(
+  "Language: {language}\nTask: {task}\nCode:\n"
+);
+
+// Create a Python-specific version
+const pythonTemplate = await template.partial({
+  language: "Python"
+});
+
+const prompt = await pythonTemplate.format({
+  task: "Create a function to sort a list"
+});
+// "Language: Python\nTask: Create a function to sort a list\nCode:\n"
+```
+
+## Prompt Composition
+
+### Pipeline Prompts
+
+Chain multiple prompts together:
+
+```typescript
+import { PromptTemplate } from "@langchain/core/prompts";
+import { RunnableSequence } from "@langchain/core/runnables";
+
+const analysisPrompt = PromptTemplate.fromTemplate(
+  "Analyze this text and identify key themes:\n{text}"
+);
+
+const summaryPrompt = PromptTemplate.fromTemplate(
+  "Based on this analysis, write a brief summary:\n{analysis}"
+);
+
+const chain = RunnableSequence.from([
+  analysisPrompt,
+  model,
+  { analysis: (msg) => msg.content },
+  summaryPrompt,
+  model
+]);
+
+const result = await chain.invoke({
+  text: "Your input text here..."
+});
+```
+
+### Conditional Prompts
+
+Select prompts based on conditions:
+
+```typescript
+import { PromptTemplate } from "@langchain/core/prompts";
+
+function getPromptForTask(taskType: string) {
+  const prompts = {
+    summarize: PromptTemplate.fromTemplate(
+      "Summarize the following in {sentences} sentences:\n{text}"
+    ),
+    translate: PromptTemplate.fromTemplate(
+      "Translate the following to {language}:\n{text}"
+    ),
+    analyze: PromptTemplate.fromTemplate(
+      "Analyze the sentiment of:\n{text}"
+    )
+  };
+  
+  return prompts[taskType] || prompts.summarize;
+}
+
+const prompt = getPromptForTask("translate");
+const formatted = await prompt.format({
+  language: "Spanish",
+  text: "Hello, how are you?"
+});
+```
+
+## Few-Shot Prompting
+
+Provide examples to guide model behavior:
+
+```typescript
+import { 
+  FewShotPromptTemplate,
+  PromptTemplate 
+} from "@langchain/core/prompts";
+
+const examples = [
+  {
+    question: "What is 2+2?",
+    answer: "Let me calculate: 2 + 2 = 4"
+  },
+  {
+    question: "What is the capital of France?",
+    answer: "Let me recall: The capital of France is Paris"
+  }
+];
+
+const examplePrompt = PromptTemplate.fromTemplate(
+  "Question: {question}\nAnswer: {answer}"
+);
+
+const fewShotPrompt = new FewShotPromptTemplate({
+  examples,
+  examplePrompt,
+  prefix: "Answer the following questions clearly:",
+  suffix: "Question: {input}\nAnswer:",
+  inputVariables: ["input"]
+});
+
+const formatted = await fewShotPrompt.format({
+  input: "What is 5+5?"
+});
+```
+
+### Dynamic Example Selection
+
+Select relevant examples based on input:
+
+```typescript
+import { 
+  SemanticSimilarityExampleSelector,
+  FewShotPromptTemplate 
+} from "@langchain/core/prompts";
+import { OpenAIEmbeddings } from "@langchain/openai";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+
+const examples = [
+  { input: "happy", output: "sad" },
+  { input: "tall", output: "short" },
+  { input: "hot", output: "cold" },
+  { input: "fast", output: "slow" }
+];
+
+const exampleSelector = await SemanticSimilarityExampleSelector.fromExamples(
+  examples,
+  new OpenAIEmbeddings(),
+  MemoryVectorStore,
+  { k: 2 }
+);
+
+const dynamicPrompt = new FewShotPromptTemplate({
+  exampleSelector,
+  examplePrompt: PromptTemplate.fromTemplate(
+    "Input: {input}\nOutput: {output}"
+  ),
+  prefix: "Give the opposite of the word:",
+  suffix: "Input: {adjective}\nOutput:",
+  inputVariables: ["adjective"]
+});
+
+const formatted = await dynamicPrompt.format({
+  adjective: "big"
+});
+// Will select the 2 most similar examples
+```
+
+## Prompt Techniques
+
+### Chain of Thought
+
+Encourage step-by-step reasoning:
+
+```typescript
+const chainOfThoughtPrompt = PromptTemplate.fromTemplate(`
+Solve this problem step by step:
+
+Problem: {problem}
+
+Let's break this down:
+1. First, identify what we know
+2. Then, determine what we need to find
+3. Finally, calculate the answer
+
+Solution:
+`);
+
+const result = await model.invoke(
+  await chainOfThoughtPrompt.format({
+    problem: "A store has 24 apples. They sell 3/4 of them. How many are left?"
+  })
+);
+```
+
+### Role Prompting
+
+Assign specific roles to guide behavior:
+
+```typescript
+const rolePrompt = PromptTemplate.fromTemplate(`
+You are an expert {role} with {years} years of experience.
+Your expertise includes: {expertise}
+
+User Query: {query}
+
+Provide a detailed, professional response:
+`);
+
+const formatted = await rolePrompt.format({
+  role: "Python developer",
+  years: "10",
+  expertise: "web frameworks, API design, database optimization",
+  query: "How should I structure a FastAPI application?"
+});
+```
+
+### Output Structuring
+
+Define the desired output format:
+
+```typescript
+const structuredPrompt = PromptTemplate.fromTemplate(`
+Analyze the following text and provide your analysis in this exact format:
+
+**Summary**: [One sentence summary]
+**Key Points**:
+- [Point 1]
+- [Point 2]
+- [Point 3]
+**Sentiment**: [Positive/Negative/Neutral]
+**Confidence**: [Low/Medium/High]
+
+Text to analyze:
+{text}
+
+Your analysis:
+`);
+```
+
+### Constraint Specification
+
+Set clear boundaries and requirements:
+
+```typescript
+const constrainedPrompt = PromptTemplate.fromTemplate(`
+Write a {content_type} about {topic}.
+
+Constraints:
+- Maximum length: {max_length} words
+- Target audience: {audience}
+- Tone: {tone}
+- Must include: {must_include}
+- Must avoid: {must_avoid}
+
+Content:
+`);
+
+const formatted = await constrainedPrompt.format({
+  content_type: "blog post",
+  topic: "AI in healthcare",
+  max_length: "500",
+  audience: "healthcare professionals",
+  tone: "professional but accessible",
+  must_include: "recent research, real-world examples",
+  must_avoid: "technical jargon, unverified claims"
+});
+```
+
+## Advanced Patterns
+
+### Prompt with Context Loading
+
+```typescript
+import { PromptTemplate } from "@langchain/core/prompts";
+import fs from "fs/promises";
+
+class ContextualPromptTemplate extends PromptTemplate {
+  async loadContext(contextFile: string): Promise<string> {
+    return await fs.readFile(contextFile, "utf-8");
+  }
+  
+  async formatWithContext(
+    values: Record<string, any>,
+    contextFile?: string
+  ): Promise<string> {
+    if (contextFile) {
+      values.context = await this.loadContext(contextFile);
+    }
+    return this.format(values);
+  }
+}
+
+const template = new ContextualPromptTemplate({
+  template: "Context:\n{context}\n\nQuestion: {question}\nAnswer:",
+  inputVariables: ["context", "question"]
+});
+
+const prompt = await template.formatWithContext(
+  { question: "What is the main topic?" },
+  "./knowledge_base.txt"
+);
+```
+
+### Prompt Caching
+
+Cache formatted prompts for reuse:
+
+```typescript
+class CachedPromptTemplate {
+  private cache = new Map<string, string>();
+  
+  constructor(private template: PromptTemplate) {}
+  
+  async format(values: Record<string, any>): Promise<string> {
+    const key = JSON.stringify(values);
+    
+    if (this.cache.has(key)) {
+      return this.cache.get(key)!;
+    }
+    
+    const formatted = await this.template.format(values);
+    this.cache.set(key, formatted);
+    return formatted;
+  }
+  
+  clearCache(): void {
+    this.cache.clear();
+  }
+}
+```
+
+### Template Validation
+
+Validate inputs before formatting:
+
+```typescript
+import { PromptTemplate } from "@langchain/core/prompts";
+import { z } from "zod";
+
+class ValidatedPromptTemplate extends PromptTemplate {
+  constructor(
+    template: string,
+    private schema: z.ZodSchema
+  ) {
+    const vars = template.match(/\{([^}]+)\}/g)
+      ?.map(v => v.slice(1, -1)) || [];
+    
+    super({
+      template,
+      inputVariables: vars
+    });
+  }
+  
+  async format(values: Record<string, any>): Promise<string> {
+    // Validate inputs
+    const validated = this.schema.parse(values);
+    return super.format(validated);
+  }
+}
+
+const schema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  age: z.number().positive()
+});
+
+const template = new ValidatedPromptTemplate(
+  "Name: {name}, Email: {email}, Age: {age}",
+  schema
+);
+
+try {
+  const prompt = await template.format({
+    name: "John",
+    email: "invalid-email",
+    age: -5
+  });
+} catch (error) {
+  console.error("Validation failed:", error);
+}
+```
+
+## Prompt Management
+
+### Prompt Hub
+
+Store and share reusable prompts:
+
+```typescript
+import { loadPrompt } from "langchain/prompts/load";
+import { PromptTemplate } from "@langchain/core/prompts";
+
+// Load from LangChain Hub
+const prompt = await loadPrompt("lc://prompts/summarization/map_reduce");
+
+// Or create a local hub
+class PromptHub {
+  private prompts = new Map<string, PromptTemplate>();
+  
+  register(name: string, template: PromptTemplate): void {
+    this.prompts.set(name, template);
+  }
+  
+  get(name: string): PromptTemplate {
+    const prompt = this.prompts.get(name);
+    if (!prompt) {
+      throw new Error(`Prompt not found: ${name}`);
+    }
+    return prompt;
+  }
+}
+
+const hub = new PromptHub();
+
+hub.register(
+  "summarize",
+  PromptTemplate.fromTemplate("Summarize: {text}")
+);
+
+hub.register(
+  "translate",
+  PromptTemplate.fromTemplate("Translate to {language}: {text}")
+);
+
+const summarizePrompt = hub.get("summarize");
+```
+
+### Versioning Prompts
+
+```typescript
+class VersionedPrompt {
+  private versions: Map<string, PromptTemplate> = new Map();
+  private currentVersion = "1.0";
+  
+  addVersion(version: string, template: PromptTemplate): void {
+    this.versions.set(version, template);
+  }
+  
+  setCurrentVersion(version: string): void {
+    if (!this.versions.has(version)) {
+      throw new Error(`Version not found: ${version}`);
+    }
+    this.currentVersion = version;
+  }
+  
+  async format(
+    values: Record<string, any>,
+    version?: string
+  ): Promise<string> {
+    const v = version || this.currentVersion;
+    const template = this.versions.get(v);
+    
+    if (!template) {
+      throw new Error(`Version not found: ${v}`);
+    }
+    
+    return template.format(values);
+  }
+}
+
+const versionedPrompt = new VersionedPrompt();
+
+versionedPrompt.addVersion(
+  "1.0",
+  PromptTemplate.fromTemplate("Summarize: {text}")
+);
+
+versionedPrompt.addVersion(
+  "2.0",
+  PromptTemplate.fromTemplate(
+    "Provide a detailed summary of: {text}\nLength: {length}"
+  )
+);
+
+versionedPrompt.setCurrentVersion("2.0");
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Be Specific and Clear">
+    Vague prompts lead to inconsistent results:
+
+    ```typescript
+    // Bad: Too vague
+    "Write something about AI"
+    
+    // Good: Specific and clear
+    "Write a 3-paragraph explanation of how neural networks work, 
+     targeting readers with basic programming knowledge but no AI background. 
+     Include a simple analogy in the first paragraph."
+    ```
+  </Accordion>
+
+  <Accordion title="Provide Context">
+    Help the model understand the situation:
+
+    ```typescript
+    const contextualPrompt = PromptTemplate.fromTemplate(`
+    Role: You are a customer service AI for a tech company.
+    
+    Company Context:
+    - We sell software development tools
+    - Our support hours are 9 AM - 5 PM EST
+    - We offer a 30-day money-back guarantee
+    
+    Customer Query: {query}
+    
+    Your Response:
+    `);
+    ```
+  </Accordion>
+
+  <Accordion title="Use Examples">
+    Show the model what you want:
+
+    ```typescript
+    const prompt = `
+    Extract key information from customer feedback.
+    
+    Example 1:
+    Feedback: "Great product but shipping was slow"
+    Output: {"sentiment": "positive", "issue": "slow shipping"}
+    
+    Example 2:
+    Feedback: "Customer support was very helpful"
+    Output: {"sentiment": "positive", "issue": "none"}
+    
+    Now extract from:
+    Feedback: "${userFeedback}"
+    Output:
+    `;
+    ```
+  </Accordion>
+
+  <Accordion title="Iterate and Test">
+    Continuously improve your prompts:
+
+    ```typescript
+    async function testPrompt(
+      template: PromptTemplate,
+      testCases: Array<{ input: any; expected: string }>
+    ) {
+      const results = [];
+      
+      for (const testCase of testCases) {
+        const prompt = await template.format(testCase.input);
+        const response = await model.invoke(prompt);
+        
+        results.push({
+          input: testCase.input,
+          expected: testCase.expected,
+          actual: response.content,
+          passed: response.content.includes(testCase.expected)
+        });
+      }
+      
+      return results;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Version Control Prompts">
+    Track changes to prompts like code:
+
+    ```typescript
+    // Store prompts in files
+    // prompts/v1/summarize.txt
+    // prompts/v2/summarize.txt
+    
+    // Load dynamically
+    const version = process.env.PROMPT_VERSION || "v2";
+    const promptText = await fs.readFile(
+      `./prompts/${version}/summarize.txt`,
+      "utf-8"
+    );
+    const prompt = PromptTemplate.fromTemplate(promptText);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Working with Chat Models" icon="comments" href="/guides/working-with-chat-models">
+    Apply prompts with different models
+  </Card>
+  <Card title="Building Agents" icon="robot" href="/guides/building-agents">
+    Use prompts in agent systems
+  </Card>
+  <Card title="Retrieval" icon="database" href="/guides/retrieval">
+    Combine prompts with retrieved context
+  </Card>
+  <Card title="Memory and History" icon="brain" href="/guides/memory-and-history">
+    Incorporate conversation history in prompts
+  </Card>
+</CardGroup>

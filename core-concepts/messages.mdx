@@ -1,0 +1,531 @@
+---
+title: Messages
+description: Understanding message types and conversation structure in LangChain.js
+---
+
+## Overview
+
+Messages are the fundamental units of conversation in LangChain.js. They represent individual contributions to a dialogue, with each message having a specific role (human, AI, system, tool) and content.
+
+<Info>
+Message classes are defined in `@langchain/core/messages`
+</Info>
+
+## Message Types
+
+LangChain.js provides several message types for different conversation roles:
+
+### HumanMessage
+
+Represents user input:
+
+```typescript
+import { HumanMessage } from "@langchain/core/messages";
+
+const message = new HumanMessage("Hello, how are you?");
+
+// Or with additional fields
+const message = new HumanMessage({
+  content: "Hello, how are you?",
+  name: "John",
+  id: "msg_123",
+});
+```
+
+### AIMessage
+
+Represents AI model responses:
+
+```typescript
+import { AIMessage } from "@langchain/core/messages";
+
+const message = new AIMessage("I'm doing well, thank you!");
+
+// With tool calls
+const message = new AIMessage({
+  content: "Let me search for that.",
+  tool_calls: [
+    {
+      id: "call_123",
+      name: "search",
+      args: { query: "LangChain" },
+    },
+  ],
+});
+```
+
+### SystemMessage
+
+Represents system instructions that guide the AI's behavior:
+
+```typescript
+import { SystemMessage } from "@langchain/core/messages";
+
+const message = new SystemMessage(
+  "You are a helpful assistant that speaks concisely."
+);
+```
+
+### ToolMessage
+
+Represents the result of a tool call:
+
+```typescript
+import { ToolMessage } from "@langchain/core/messages";
+
+const message = new ToolMessage({
+  content: "Search results: ...",
+  tool_call_id: "call_123",
+  name: "search",
+});
+```
+
+### ChatMessage
+
+Generic message with a custom role:
+
+```typescript
+import { ChatMessage } from "@langchain/core/messages";
+
+const message = new ChatMessage({
+  content: "Custom content",
+  role: "moderator",
+});
+```
+
+## Message Content
+
+### String Content
+
+The simplest form is a plain string:
+
+```typescript
+const message = new HumanMessage("What is AI?");
+```
+
+### Multimodal Content
+
+Messages can contain multiple content types:
+
+```typescript
+import { HumanMessage } from "@langchain/core/messages";
+
+const message = new HumanMessage({
+  content: [
+    {
+      type: "text",
+      text: "What's in this image?",
+    },
+    {
+      type: "image_url",
+      image_url: {
+        url: "https://example.com/image.jpg",
+      },
+    },
+  ],
+});
+```
+
+Supported content types:
+- `text` - Text content
+- `image_url` - Image from URL
+- `image_data` - Base64-encoded image
+
+## Message Properties
+
+All messages support these properties:
+
+```typescript
+interface BaseMessageFields {
+  content: string | Array<ContentBlock>;
+  name?: string;                    // Optional identifier
+  id?: string;                      // Unique message ID
+  additional_kwargs?: Record<string, any>;
+  response_metadata?: Record<string, any>;
+}
+```
+
+### content
+
+The message content (string or multimodal array).
+
+### name
+
+Optional identifier for the message sender:
+
+```typescript
+const message = new HumanMessage({
+  content: "Hello!",
+  name: "Alice",
+});
+```
+
+### id
+
+Unique identifier for the message:
+
+```typescript
+const message = new AIMessage({
+  content: "Hello!",
+  id: "msg_abc123",
+});
+```
+
+### additional_kwargs
+
+Provider-specific data:
+
+```typescript
+const message = new AIMessage({
+  content: "Hello!",
+  additional_kwargs: {
+    function_call: { /* legacy format */ },
+  },
+});
+```
+
+### response_metadata
+
+Metadata about the model response:
+
+```typescript
+const message = new AIMessage({
+  content: "Hello!",
+  response_metadata: {
+    model_name: "gpt-4o",
+    finish_reason: "stop",
+    usage: {
+      prompt_tokens: 10,
+      completion_tokens: 20,
+      total_tokens: 30,
+    },
+  },
+});
+```
+
+## AIMessage Specific Fields
+
+### tool_calls
+
+Tool calls made by the AI:
+
+```typescript
+const message = new AIMessage({
+  content: "",
+  tool_calls: [
+    {
+      id: "call_123",
+      name: "calculator",
+      args: {
+        operation: "multiply",
+        a: 25,
+        b: 17,
+      },
+    },
+  ],
+});
+```
+
+### usage_metadata
+
+Token usage information:
+
+```typescript
+const message = new AIMessage({
+  content: "Hello!",
+  usage_metadata: {
+    input_tokens: 10,
+    output_tokens: 5,
+    total_tokens: 15,
+  },
+});
+```
+
+## Message Shortcuts
+
+You can use tuple shorthand in many places:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI();
+
+// These are equivalent:
+const result1 = await model.invoke([
+  new HumanMessage("Hello"),
+]);
+
+const result2 = await model.invoke([
+  ["human", "Hello"],
+]);
+
+const result3 = await model.invoke([
+  { role: "user", content: "Hello" },
+]);
+```
+
+Supported shorthand formats:
+- `["human", "content"]` → HumanMessage
+- `["ai", "content"]` → AIMessage
+- `["system", "content"]` → SystemMessage
+- `{ role: "user", content: "..." }` → HumanMessage (OpenAI format)
+- `{ role: "assistant", content: "..." }` → AIMessage
+
+## Message Utils
+
+### isMessage()
+
+Check if an object is a message:
+
+```typescript
+import { isMessage } from "@langchain/core/messages";
+
+if (isMessage(obj)) {
+  console.log(obj.content);
+}
+```
+
+### Type-specific Checks
+
+Use static `isInstance()` methods:
+
+```typescript
+import { AIMessage, HumanMessage } from "@langchain/core/messages";
+
+if (AIMessage.isInstance(message)) {
+  // TypeScript knows this is an AIMessage
+  console.log(message.tool_calls);
+}
+
+if (HumanMessage.isInstance(message)) {
+  // TypeScript knows this is a HumanMessage
+}
+```
+
+<Warning>
+Avoid using `instanceof` directly. Use the static `isInstance()` methods instead.
+</Warning>
+
+### coerceMessageLikeToMessage()
+
+Convert shorthand to message objects:
+
+```typescript
+import { coerceMessageLikeToMessage } from "@langchain/core/messages";
+
+const message = coerceMessageLikeToMessage(["human", "Hello"]);
+// Returns: HumanMessage("Hello")
+```
+
+## Message History
+
+Managing conversation history:
+
+```typescript
+import { HumanMessage, AIMessage } from "@langchain/core/messages";
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI();
+const history = [];
+
+// User message
+const userMessage = new HumanMessage("What's the capital of France?");
+history.push(userMessage);
+
+// Get AI response
+const aiResponse = await model.invoke(history);
+history.push(aiResponse);
+
+// Continue conversation
+const followUp = new HumanMessage("What's its population?");
+history.push(followUp);
+
+const response2 = await model.invoke(history);
+history.push(response2);
+```
+
+## Message Transformations
+
+### Trimming
+
+Keep only recent messages:
+
+```typescript
+function trimMessages(messages, maxMessages = 10) {
+  return messages.slice(-maxMessages);
+}
+```
+
+### Filtering
+
+Remove specific message types:
+
+```typescript
+import { SystemMessage } from "@langchain/core/messages";
+
+const withoutSystem = messages.filter(
+  (msg) => !SystemMessage.isInstance(msg)
+);
+```
+
+### Formatting
+
+Convert messages to strings:
+
+```typescript
+import { getBufferString } from "@langchain/core/messages";
+
+const formatted = getBufferString(messages);
+// "Human: Hello\nAI: Hi there!\nHuman: How are you?"
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Appropriate Message Types">
+    Always use the correct message type for each role:
+    - `HumanMessage` for user input
+    - `AIMessage` for model responses
+    - `SystemMessage` for instructions
+    - `ToolMessage` for tool results
+  </Accordion>
+  
+  <Accordion title="Maintain Message Order">
+    Keep messages in chronological order. The conversation flow should be logical:
+    ```typescript
+    [
+      new SystemMessage("Instructions"),
+      new HumanMessage("Question 1"),
+      new AIMessage("Answer 1"),
+      new HumanMessage("Question 2"),
+      new AIMessage("Answer 2"),
+    ]
+    ```
+  </Accordion>
+  
+  <Accordion title="Use IDs for Tool Calls">
+    Always include `id` and `tool_call_id` for proper tool call tracking:
+    ```typescript
+    const aiMsg = new AIMessage({
+      content: "",
+      tool_calls: [{ id: "call_123", name: "search", args: {} }],
+    });
+    
+    const toolMsg = new ToolMessage({
+      content: "Results...",
+      tool_call_id: "call_123",
+      name: "search",
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="Manage History Size">
+    Prevent context overflow by trimming old messages:
+    ```typescript
+    const recentHistory = history.slice(-10); // Keep last 10 messages
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Type Signatures
+
+```typescript
+// Base message interface
+interface BaseMessageFields<
+  TStructure extends MessageStructure = MessageStructure,
+  TRole extends MessageType = MessageType,
+> {
+  content?: MessageContent;
+  name?: string;
+  id?: string;
+  additional_kwargs?: Record<string, any>;
+  response_metadata?: Record<string, any>;
+}
+
+type MessageContent = string | Array<ContentBlock>;
+
+// Message classes
+class HumanMessage extends BaseMessage {
+  readonly type = "human";
+  constructor(fields: string | HumanMessageFields);
+}
+
+class AIMessage extends BaseMessage {
+  readonly type = "ai";
+  tool_calls?: ToolCall[];
+  usage_metadata?: UsageMetadata;
+  constructor(fields: string | AIMessageFields);
+}
+
+class SystemMessage extends BaseMessage {
+  readonly type = "system";
+  constructor(fields: string | SystemMessageFields);
+}
+
+class ToolMessage extends BaseMessage {
+  readonly type = "tool";
+  tool_call_id: string;
+  constructor(fields: ToolMessageFields);
+}
+```
+
+## Common Patterns
+
+### Building Conversations
+
+```typescript
+import { SystemMessage, HumanMessage } from "@langchain/core/messages";
+
+const messages = [
+  new SystemMessage("You are a helpful coding assistant."),
+  new HumanMessage("How do I sort an array in JavaScript?"),
+];
+
+const response = await model.invoke(messages);
+```
+
+### Tool Call Flow
+
+```typescript
+import { AIMessage, ToolMessage } from "@langchain/core/messages";
+
+// 1. AI makes a tool call
+const aiMessage = new AIMessage({
+  content: "",
+  tool_calls: [
+    {
+      id: "call_abc",
+      name: "get_weather",
+      args: { location: "San Francisco" },
+    },
+  ],
+});
+
+// 2. Tool returns result
+const toolMessage = new ToolMessage({
+  content: "72°F and sunny",
+  tool_call_id: "call_abc",
+  name: "get_weather",
+});
+
+// 3. Continue conversation
+const messages = [userMessage, aiMessage, toolMessage];
+const finalResponse = await model.invoke(messages);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Chat Models" icon="robot" href="/core-concepts/chat-models">
+    Use models with messages
+  </Card>
+  <Card title="Prompts" icon="file-text" href="/core-concepts/prompts">
+    Create message templates
+  </Card>
+  <Card title="Tools" icon="wrench" href="/core-concepts/tools">
+    Handle tool messages
+  </Card>
+  <Card title="Agents" icon="brain" href="/core-concepts/agents">
+    Build conversational agents
+  </Card>
+</CardGroup>

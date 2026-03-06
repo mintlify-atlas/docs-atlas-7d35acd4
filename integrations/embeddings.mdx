@@ -1,0 +1,390 @@
+---
+title: Embeddings
+description: Generate vector embeddings for semantic search and similarity matching
+---
+
+Embeddings are numerical representations of text that capture semantic meaning. LangChain.js provides integrations with various embedding model providers to help you build semantic search, recommendation systems, and RAG (Retrieval-Augmented Generation) applications.
+
+## Popular Embedding Providers
+
+<CardGroup cols={2}>
+  <Card title="OpenAI" icon="openai" href="#openai-embeddings">
+    text-embedding-3-small and text-embedding-3-large
+  </Card>
+  
+  <Card title="Cohere" icon="cohere" href="#cohere-embeddings">
+    Embed-v3 with multilingual support
+  </Card>
+  
+  <Card title="Google" icon="google" href="#google-embeddings">
+    Vertex AI and Generative AI embeddings
+  </Card>
+  
+  <Card title="Nomic" icon="nomic" href="#nomic-embeddings">
+    Open-source embedding models
+  </Card>
+</CardGroup>
+
+## OpenAI Embeddings
+
+OpenAI provides state-of-the-art embedding models with excellent performance and cost-efficiency.
+
+### Installation
+
+```bash
+npm install @langchain/openai
+```
+
+### Usage
+
+```typescript
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+const embeddings = new OpenAIEmbeddings({
+  model: "text-embedding-3-small",
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Embed a single document
+const docEmbedding = await embeddings.embedQuery(
+  "What is the meaning of life?"
+);
+
+console.log(docEmbedding.length); // 1536 dimensions for text-embedding-3-small
+```
+
+### Batch Embeddings
+
+```typescript
+// Embed multiple documents
+const documents = [
+  "LangChain is a framework for LLM applications",
+  "Vector embeddings capture semantic meaning",
+  "Retrieval-Augmented Generation improves LLM accuracy",
+];
+
+const docEmbeddings = await embeddings.embedDocuments(documents);
+
+console.log(docEmbeddings.length); // 3
+console.log(docEmbeddings[0].length); // 1536
+```
+
+### Model Options
+
+```typescript
+// text-embedding-3-small: Efficient and cost-effective
+const smallEmbeddings = new OpenAIEmbeddings({
+  model: "text-embedding-3-small",
+  dimensions: 512, // Optional: reduce dimensions for efficiency
+});
+
+// text-embedding-3-large: Higher quality for demanding tasks
+const largeEmbeddings = new OpenAIEmbeddings({
+  model: "text-embedding-3-large",
+  dimensions: 3072, // Default dimension
+});
+```
+
+## Cohere Embeddings
+
+Cohere's embedding models support multiple languages and task-specific optimizations.
+
+### Installation
+
+```bash
+npm install @langchain/cohere
+```
+
+### Usage
+
+```typescript
+import { CohereEmbeddings } from "@langchain/cohere";
+
+const embeddings = new CohereEmbeddings({
+  model: "embed-english-v3.0",
+  apiKey: process.env.COHERE_API_KEY,
+});
+
+const query = "What is machine learning?";
+const queryEmbedding = await embeddings.embedQuery(query);
+
+console.log(queryEmbedding.length); // 1024 dimensions
+```
+
+### Input Types
+
+Cohere embeddings support different input types for optimization:
+
+```typescript
+import { CohereEmbeddings } from "@langchain/cohere";
+
+// For search queries
+const searchEmbeddings = new CohereEmbeddings({
+  model: "embed-english-v3.0",
+  inputType: "search_query",
+});
+
+// For documents being indexed
+const docEmbeddings = new CohereEmbeddings({
+  model: "embed-english-v3.0",
+  inputType: "search_document",
+});
+
+// For classification tasks
+const classificationEmbeddings = new CohereEmbeddings({
+  model: "embed-english-v3.0",
+  inputType: "classification",
+});
+```
+
+## Google Embeddings
+
+Google offers embedding models through both Vertex AI and Generative AI APIs.
+
+### Installation
+
+```bash
+npm install @langchain/google-genai
+```
+
+### Generative AI (API Key)
+
+```typescript
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
+
+const embeddings = new GoogleGenerativeAIEmbeddings({
+  model: "text-embedding-004",
+  apiKey: process.env.GOOGLE_API_KEY,
+});
+
+const text = "LangChain simplifies LLM application development";
+const embedding = await embeddings.embedQuery(text);
+
+console.log(embedding.length); // 768 dimensions
+```
+
+### Vertex AI
+
+```bash
+npm install @langchain/google-vertexai
+```
+
+```typescript
+import { GoogleVertexAIEmbeddings } from "@langchain/google-vertexai";
+
+const embeddings = new GoogleVertexAIEmbeddings({
+  model: "text-embedding-004",
+  // Requires Google Cloud credentials
+});
+
+const embedding = await embeddings.embedQuery("Sample text");
+```
+
+## Nomic Embeddings
+
+Nomic provides open-source embedding models that can run locally or via their API.
+
+### Installation
+
+```bash
+npm install @langchain/nomic
+```
+
+### Usage
+
+```typescript
+import { NomicEmbeddings } from "@langchain/nomic";
+
+const embeddings = new NomicEmbeddings({
+  model: "nomic-embed-text-v1.5",
+  apiKey: process.env.NOMIC_API_KEY,
+});
+
+const query = "How do transformers work?";
+const embedding = await embeddings.embedQuery(query);
+```
+
+## Additional Providers
+
+<CardGroup cols={2}>
+  <Card title="AWS Bedrock" icon="aws">
+    `@langchain/aws` - Titan and other embedding models
+  </Card>
+  
+  <Card title="Azure OpenAI" icon="microsoft">
+    `@langchain/openai` - OpenAI embeddings via Azure
+  </Card>
+  
+  <Card title="Ollama" icon="ollama">
+    `@langchain/ollama` - Local embedding models
+  </Card>
+  
+  <Card title="Mixedbread AI" icon="mixedbread">
+    `@langchain/mixedbread-ai` - High-quality embeddings
+  </Card>
+</CardGroup>
+
+## Community Integrations
+
+Additional embedding providers are available in `@langchain/community`:
+
+```bash
+npm install @langchain/community
+```
+
+```typescript
+import { HuggingFaceInferenceEmbeddings } from "@langchain/community/embeddings/hf";
+import { DeepInfraEmbeddings } from "@langchain/community/embeddings/deepinfra";
+import { JinaEmbeddings } from "@langchain/community/embeddings/jina";
+import { FireworksEmbeddings } from "@langchain/community/embeddings/fireworks";
+```
+
+### HuggingFace Example
+
+```typescript
+import { HuggingFaceInferenceEmbeddings } from "@langchain/community/embeddings/hf";
+
+const embeddings = new HuggingFaceInferenceEmbeddings({
+  model: "sentence-transformers/all-MiniLM-L6-v2",
+  apiKey: process.env.HUGGINGFACEHUB_API_KEY,
+});
+
+const embedding = await embeddings.embedQuery("Hello world");
+```
+
+## Local Embeddings
+
+For privacy-sensitive applications, you can run embeddings locally:
+
+### Ollama
+
+```bash
+npm install @langchain/ollama
+```
+
+```typescript
+import { OllamaEmbeddings } from "@langchain/ollama";
+
+const embeddings = new OllamaEmbeddings({
+  model: "nomic-embed-text",
+  baseUrl: "http://localhost:11434", // Default Ollama URL
+});
+
+const embedding = await embeddings.embedQuery("Private document content");
+```
+
+### Transformers.js (Browser/Node)
+
+```bash
+npm install @langchain/community @xenova/transformers
+```
+
+```typescript
+import { HuggingFaceTransformersEmbeddings } from "@langchain/community/embeddings/huggingface_transformers";
+
+const embeddings = new HuggingFaceTransformersEmbeddings({
+  model: "Xenova/all-MiniLM-L6-v2",
+});
+
+const embedding = await embeddings.embedQuery("Embedded in browser or Node.js");
+```
+
+## Common Patterns
+
+### Similarity Search
+
+```typescript
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+const embeddings = new OpenAIEmbeddings();
+
+// Generate embeddings
+const query = "machine learning applications";
+const queryEmbedding = await embeddings.embedQuery(query);
+
+const documents = [
+  "Machine learning is used in recommendation systems",
+  "The weather today is sunny",
+  "Deep learning powers image recognition",
+];
+
+const docEmbeddings = await embeddings.embedDocuments(documents);
+
+// Calculate cosine similarity
+function cosineSimilarity(a: number[], b: number[]): number {
+  const dotProduct = a.reduce((sum, val, i) => sum + val * b[i], 0);
+  const magnitudeA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
+  const magnitudeB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
+  return dotProduct / (magnitudeA * magnitudeB);
+}
+
+const similarities = docEmbeddings.map(docEmbed => 
+  cosineSimilarity(queryEmbedding, docEmbed)
+);
+
+console.log(similarities); // [0.85, 0.12, 0.82] - first and third docs are most similar
+```
+
+### Caching for Performance
+
+```typescript
+import { OpenAIEmbeddings } from "@langchain/openai";
+import { CacheBackedEmbeddings } from "@langchain/core/embeddings";
+import { InMemoryStore } from "@langchain/core/stores";
+
+const underlyingEmbeddings = new OpenAIEmbeddings();
+const inMemoryStore = new InMemoryStore();
+
+const cachedEmbeddings = CacheBackedEmbeddings.fromBytesStore(
+  underlyingEmbeddings,
+  inMemoryStore,
+  {
+    namespace: "my-app-embeddings",
+  }
+);
+
+// First call hits the API
+const embedding1 = await cachedEmbeddings.embedQuery("sample text");
+
+// Second call uses cache
+const embedding2 = await cachedEmbeddings.embedQuery("sample text");
+```
+
+## Best Practices
+
+1. **Choose the right model**: Balance cost, quality, and dimension size
+2. **Batch when possible**: Embed multiple documents in one call for efficiency
+3. **Cache embeddings**: Store embeddings to avoid redundant API calls
+4. **Normalize inputs**: Consistent text preprocessing improves quality
+5. **Monitor costs**: Track embedding generation for budget management
+6. **Consider local models**: For privacy or high-volume applications
+
+## Dimension Comparison
+
+| Provider | Model | Dimensions | Use Case |
+|----------|-------|------------|----------|
+| OpenAI | text-embedding-3-small | 1536 | General purpose, cost-effective |
+| OpenAI | text-embedding-3-large | 3072 | High quality, detailed semantics |
+| Cohere | embed-english-v3.0 | 1024 | Multilingual, task-specific |
+| Google | text-embedding-004 | 768 | Google ecosystem integration |
+| Nomic | nomic-embed-text-v1.5 | 768 | Open-source, local deployment |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Vector Stores" href="/integrations/vector-stores">
+    Store and search embeddings efficiently
+  </Card>
+  
+  <Card title="Document Loaders" href="/integrations/document-loaders">
+    Load documents for embedding
+  </Card>
+  
+  <Card title="Retrieval" href="/guides/retrieval">
+    Build RAG applications with embeddings
+  </Card>
+  
+  <Card title="Chat Models" href="/integrations/chat-models">
+    Combine embeddings with LLMs
+  </Card>
+</CardGroup>

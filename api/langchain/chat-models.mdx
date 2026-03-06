@@ -1,0 +1,279 @@
+---
+title: Chat Models
+description: API reference for initializing and configuring chat models across providers
+---
+
+The `langchain` package provides a universal interface for initializing chat models from any supported provider. This allows you to easily switch between different model providers without changing your code structure.
+
+## Core Functions
+
+### initChatModel
+
+Initializes a chat model from a model name and optional provider. The function automatically infers the provider when possible and handles dynamic model loading.
+
+```typescript
+import { initChatModel } from "langchain";
+
+const model = await initChatModel("openai:gpt-4o", {
+  temperature: 0.7,
+});
+
+const result = await model.invoke("Hello, how are you?");
+```
+
+**Parameters:**
+
+<ParamField path="model" type="string">
+  The model name, optionally prefixed with provider (e.g., `"openai:gpt-4o"`, `"anthropic:claude-3-opus-20240229"`, or just `"gpt-4o"`).
+</ParamField>
+
+<ParamField path="fields.modelProvider" type="string">
+  Explicit model provider. Supported values:
+  - `openai` - OpenAI models via `@langchain/openai`
+  - `anthropic` - Anthropic models via `@langchain/anthropic`
+  - `azure_openai` - Azure OpenAI via `@langchain/openai`
+  - `google-vertexai` - Google Vertex AI via `@langchain/google-vertexai`
+  - `google-vertexai-web` - Google Vertex AI Web via `@langchain/google-vertexai-web`
+  - `google-genai` - Google Generative AI via `@langchain/google-genai`
+  - `bedrock` - AWS Bedrock via `@langchain/aws`
+  - `cohere` - Cohere via `@langchain/cohere`
+  - `mistralai` - Mistral AI via `@langchain/mistralai`
+  - `groq` - Groq via `@langchain/groq`
+  - `ollama` - Ollama via `@langchain/ollama`
+  - `cerebras` - Cerebras via `@langchain/cerebras`
+  - `deepseek` - DeepSeek via `@langchain/deepseek`
+  - `xai` - xAI via `@langchain/xai`
+  - `fireworks` - Fireworks via `@langchain/community/chat_models/fireworks`
+  - `together` - Together AI via `@langchain/community/chat_models/togetherai`
+  - `perplexity` - Perplexity via `@langchain/community/chat_models/perplexity`
+</ParamField>
+
+<ParamField path="fields.configurableFields" type="string[] | 'any'">
+  Which model parameters are configurable at runtime:
+  - `undefined` - No configurable fields (default)
+  - `"any"` - All fields are configurable (⚠️ Security Note: allows changing `apiKey`, `baseUrl`, etc.)
+  - `string[]` - Specific fields that can be configured
+</ParamField>
+
+<ParamField path="fields.configPrefix" type="string">
+  Prefix for configurable fields. Useful for namespacing configuration when using multiple models.
+</ParamField>
+
+<ParamField path="fields.profile" type="ModelProfile">
+  Override profiling information for the model (e.g., token limits, capabilities). If not provided, the profile is inferred from the model instance.
+</ParamField>
+
+<ParamField path="fields.*" type="any">
+  Additional parameters passed to the underlying chat model constructor (e.g., `temperature`, `maxTokens`, `apiKey`).
+</ParamField>
+
+**Returns:** `Promise<ConfigurableModel>` - A configurable chat model instance.
+
+**Source:** `libs/langchain/src/chat_models/universal.ts:719`
+
+---
+
+## Examples
+
+### Basic Usage
+
+```typescript
+import { initChatModel } from "langchain";
+
+// OpenAI
+const gpt4 = await initChatModel("openai:gpt-4o", {
+  temperature: 0.25,
+});
+const gpt4Result = await gpt4.invoke("What's your name?");
+
+// Anthropic
+const claude = await initChatModel("anthropic:claude-3-opus-20240229", {
+  temperature: 0.25,
+});
+const claudeResult = await claude.invoke("What's your name?");
+
+// Google Vertex AI (with explicit provider)
+const gemini = await initChatModel("gemini-1.5-pro", {
+  modelProvider: "google-vertexai",
+  temperature: 0.25,
+});
+const geminiResult = await gemini.invoke("What's your name?");
+```
+
+### Configurable Models
+
+Create models that can be reconfigured at runtime:
+
+```typescript
+import { initChatModel } from "langchain";
+
+// Partially configurable model
+const configurableModel = await initChatModel(undefined, {
+  temperature: 0,
+  configurableFields: ["model", "apiKey"],
+});
+
+// Use with GPT-4
+const gpt4Result = await configurableModel.invoke("What's your name?", {
+  configurable: {
+    model: "gpt-4",
+  },
+});
+
+// Use with Claude
+const claudeResult = await configurableModel.invoke("What's your name?", {
+  configurable: {
+    model: "claude-sonnet-4-5-20250929",
+  },
+});
+```
+
+### Fully Configurable with Prefix
+
+```typescript
+import { initChatModel } from "langchain";
+
+const configurableModel = await initChatModel("gpt-4", {
+  modelProvider: "openai",
+  configurableFields: "any",
+  configPrefix: "llm",
+  temperature: 0,
+});
+
+// Use default (GPT-4)
+const openaiResult = await configurableModel.invoke("What's your name?", {
+  configurable: {
+    llm_apiKey: process.env.OPENAI_API_KEY,
+  },
+});
+
+// Switch to Claude at runtime
+const claudeResult = await configurableModel.invoke("What's your name?", {
+  configurable: {
+    llm_model: "claude-sonnet-4-5-20250929",
+    llm_modelProvider: "anthropic",
+    llm_temperature: 0.6,
+    llm_apiKey: process.env.ANTHROPIC_API_KEY,
+  },
+});
+```
+
+### Binding Tools
+
+```typescript
+import { initChatModel } from "langchain";
+import { z } from "zod";
+import { tool } from "@langchain/core/tools";
+
+const getWeatherTool = tool(
+  (input) => JSON.stringify(input),
+  {
+    schema: z.object({
+      location: z.string().describe("The city and state, e.g. San Francisco, CA"),
+    }).describe("Get the current weather in a given location"),
+    name: "GetWeather",
+    description: "Get the current weather in a given location",
+  }
+);
+
+const model = await initChatModel("gpt-4", {
+  configurableFields: ["model", "modelProvider", "apiKey"],
+  temperature: 0,
+});
+
+const modelWithTools = model.bindTools([getWeatherTool]);
+
+const result = await modelWithTools.invoke(
+  "What's the weather in San Francisco?",
+  {
+    configurable: {
+      apiKey: process.env.OPENAI_API_KEY,
+    },
+  }
+);
+```
+
+### Custom Model Profile
+
+```typescript
+import { initChatModel } from "langchain";
+
+const model = await initChatModel("gpt-4o-mini", {
+  profile: {
+    maxInputTokens: 100000,
+    maxOutputTokens: 4096,
+    supportsToolCalling: true,
+    supportsStructuredOutput: true,
+  },
+});
+
+console.log(model.profile);
+```
+
+---
+
+## Provider Inference
+
+The function automatically infers the provider from model name prefixes:
+
+- `gpt-3...`, `gpt-4...`, `gpt-5...`, `o1...`, `o3...`, `o4...` → `openai`
+- `claude...` → `anthropic`
+- `command...` → `cohere`
+- `accounts/fireworks...` → `fireworks`
+- `gemini...` → `google-vertexai`
+- `amazon....` → `bedrock`
+- `mistral...` → `mistralai`
+- `sonar...`, `pplx...` → `perplexity`
+
+---
+
+## ConfigurableModel
+
+The `ConfigurableModel` class returned by `initChatModel` extends `BaseChatModel` and provides:
+
+### Methods
+
+- `invoke(input, options?)` - Invoke the model with a single input
+- `stream(input, options?)` - Stream the model's response
+- `batch(inputs, options?)` - Process multiple inputs in batch
+- `bindTools(tools, params?)` - Bind tools to the model
+- `withStructuredOutput(schema)` - Configure structured output
+- `withConfig(config)` - Bind configuration to the model
+
+### Properties
+
+- `profile` - Model profiling information (token limits, capabilities)
+
+---
+
+## Security Considerations
+
+<Warning>
+  Setting `configurableFields: "any"` allows runtime modification of sensitive fields like `apiKey` and `baseUrl`. This could redirect model requests to a different service or user. 
+  
+  **Always enumerate specific `configurableFields` when accepting untrusted configurations.**
+</Warning>
+
+---
+
+## Type Exports
+
+### ConfigurableModel
+
+The model class returned by `initChatModel`. Extends `BaseChatModel` with configuration support.
+
+### ConfigurableChatModelCallOptions
+
+Call options for configurable models, including tool binding support.
+
+### ChatModelProvider
+
+Union type of all supported model providers.
+
+---
+
+## Related
+
+- [Agents](/oss/javascript/langchain/agents) - Using models with agents
+- [Tools](/oss/javascript/core/tools) - Creating tools for chat models
+- [Messages](/oss/javascript/core/messages) - Working with message types

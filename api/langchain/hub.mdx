@@ -1,0 +1,340 @@
+---
+title: Hub
+description: API reference for pulling and pushing prompts to LangSmith Hub
+---
+
+The LangChain Hub provides a centralized repository for sharing and versioning prompts. The `langchain/hub` module allows you to pull prompts from the hub and optionally push your own prompts.
+
+## Core Functions
+
+### pull
+
+Pulls a prompt from the LangChain Hub.
+
+```typescript
+import { pull } from "langchain/hub";
+
+const prompt = await pull("hwchase17/react-json");
+const result = await prompt.invoke({
+  input: "What is the weather in SF?",
+  agent_scratchpad: [],
+});
+```
+
+**Parameters:**
+
+<ParamField path="ownerRepoCommit" type="string" required>
+  The hub identifier in the format `owner/repo` or `owner/repo/commit`. Examples:
+  - `"hwchase17/react-json"` - Latest version
+  - `"hwchase17/react-json/abc123"` - Specific commit
+</ParamField>
+
+<ParamField path="options.apiKey" type="string">
+  LangSmith API key. If not provided, uses the `LANGSMITH_API_KEY` environment variable.
+</ParamField>
+
+<ParamField path="options.apiUrl" type="string">
+  LangSmith API URL. Defaults to `https://api.smith.langchain.com`.
+</ParamField>
+
+<ParamField path="options.includeModel" type="boolean">
+  Whether to instantiate and attach a model instance to the prompt if the prompt has associated model metadata.
+  
+  When `true`, invoking the pulled prompt will also invoke the model. For non-OpenAI models, you must also set `modelClass`.
+</ParamField>
+
+<ParamField path="options.modelClass" type="BaseChatModel constructor">
+  The class constructor for non-OpenAI models when `includeModel` is `true`.
+  
+  ```typescript
+  import { pull } from "langchain/hub";
+  import { ChatAnthropic } from "@langchain/anthropic";
+  
+  const prompt = await pull("my-prompt", {
+    includeModel: true,
+    modelClass: ChatAnthropic,
+  });
+  ```
+  
+  Not needed in Node.js when using `langchain/hub/node` entrypoint.
+</ParamField>
+
+<ParamField path="options.secrets" type="Record<string, string>">
+  A map of secrets to use when loading the prompt, e.g., `{ 'OPENAI_API_KEY': 'sk-...' }`.
+  
+  If a secret is not found in the map, it will be loaded from the environment if `secretsFromEnv` is `true`.
+</ParamField>
+
+<ParamField path="options.secretsFromEnv" type="boolean">
+  Whether to load secrets from environment variables. Use with caution and only with trusted prompts.
+</ParamField>
+
+<ParamField path="options.client" type="Client">
+  LangSmith client instance to use. If not provided, a new client is created.
+</ParamField>
+
+<ParamField path="options.skipCache" type="boolean">
+  Whether to skip the global default cache when pulling the prompt.
+</ParamField>
+
+**Returns:** `Promise<Runnable>` - A runnable prompt that can be invoked.
+
+**Source:** `libs/langchain/src/hub/index.ts:40`
+
+---
+
+### push
+
+Pushes a prompt to the LangChain Hub.
+
+```typescript
+import { push } from "langchain/hub";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+
+const prompt = ChatPromptTemplate.fromMessages([
+  ["system", "You are a helpful assistant."],
+  ["human", "{input}"],
+]);
+
+await push("my-org/my-prompt", prompt, {
+  apiKey: process.env.LANGSMITH_API_KEY,
+});
+```
+
+**Parameters:**
+
+<ParamField path="ownerRepo" type="string" required>
+  The hub identifier in the format `owner/repo` where the prompt will be stored.
+</ParamField>
+
+<ParamField path="prompt" type="Runnable" required>
+  The prompt to push to the hub.
+</ParamField>
+
+<ParamField path="options.apiKey" type="string">
+  LangSmith API key. If not provided, uses the `LANGSMITH_API_KEY` environment variable.
+</ParamField>
+
+<ParamField path="options.apiUrl" type="string">
+  LangSmith API URL. Defaults to `https://api.smith.langchain.com`.
+</ParamField>
+
+<ParamField path="options.client" type="Client">
+  LangSmith client instance to use.
+</ParamField>
+
+**Returns:** `Promise<void>`
+
+**Source:** Re-exported from `libs/langchain/src/hub/base.ts`
+
+---
+
+## Examples
+
+### Basic Prompt Pull
+
+```typescript
+import { pull } from "langchain/hub";
+
+// Pull a prompt from the hub
+const prompt = await pull("hwchase17/react-json");
+
+// Use the prompt
+const result = await prompt.invoke({
+  input: "What is the capital of France?",
+  agent_scratchpad: [],
+});
+
+console.log(result);
+```
+
+### Pull Specific Commit
+
+```typescript
+import { pull } from "langchain/hub";
+
+// Pull a specific version by commit hash
+const prompt = await pull("hwchase17/react-json/abc123def456");
+```
+
+### Pull with Model (OpenAI)
+
+```typescript
+import { pull } from "langchain/hub";
+
+// For OpenAI models, includeModel works automatically
+const promptWithModel = await pull("my-org/my-prompt", {
+  includeModel: true,
+  secrets: {
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  },
+});
+
+// Invoking runs both prompt and model
+const result = await promptWithModel.invoke({
+  input: "Hello, world!",
+});
+```
+
+### Pull with Model (Other Providers)
+
+```typescript
+import { pull } from "langchain/hub";
+import { ChatAnthropic } from "@langchain/anthropic";
+
+const promptWithModel = await pull("my-org/my-prompt", {
+  includeModel: true,
+  modelClass: ChatAnthropic,
+  secrets: {
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+  },
+});
+
+const result = await promptWithModel.invoke({
+  input: "What is the meaning of life?",
+});
+```
+
+### Push a Prompt
+
+```typescript
+import { push } from "langchain/hub";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+
+const prompt = ChatPromptTemplate.fromMessages([
+  ["system", "You are a helpful AI assistant that specializes in {topic}."],
+  ["human", "{input}"],
+]);
+
+// Push to the hub
+await push("my-org/specialty-assistant", prompt, {
+  apiKey: process.env.LANGSMITH_API_KEY,
+});
+
+console.log("Prompt pushed successfully!");
+```
+
+### Using Custom LangSmith Client
+
+```typescript
+import { pull } from "langchain/hub";
+import { Client } from "langsmith";
+
+const client = new Client({
+  apiKey: process.env.LANGSMITH_API_KEY,
+  apiUrl: "https://api.smith.langchain.com",
+});
+
+const prompt = await pull("hwchase17/react-json", {
+  client,
+});
+```
+
+### Loading with Environment Secrets
+
+```typescript
+import { pull } from "langchain/hub";
+
+// Load secrets from environment variables
+const prompt = await pull("my-org/my-prompt", {
+  includeModel: true,
+  secretsFromEnv: true, // Allows loading API keys from process.env
+});
+```
+
+### Skip Cache
+
+```typescript
+import { pull } from "langchain/hub";
+
+// Always fetch the latest version
+const prompt = await pull("hwchase17/react-json", {
+  skipCache: true,
+});
+```
+
+---
+
+## Node.js Entrypoint
+
+For Node.js environments with dynamic import support, use the `langchain/hub/node` entrypoint:
+
+```typescript
+import { pull } from "langchain/hub/node";
+
+// Automatically handles non-OpenAI models without specifying modelClass
+const prompt = await pull("my-org/anthropic-prompt", {
+  includeModel: true,
+  secrets: {
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+  },
+});
+```
+
+**Source:** `libs/langchain/src/hub/node.ts`
+
+---
+
+## Environment Variables
+
+The hub module respects the following environment variables:
+
+- `LANGSMITH_API_KEY` - Your LangSmith API key for authentication
+- `LANGSMITH_API_URL` - Custom LangSmith API URL (optional)
+
+---
+
+## Prompt Format
+
+Prompts pulled from the hub are typically one of:
+
+- `ChatPromptTemplate` - For chat-based interactions
+- `PromptTemplate` - For single-string prompts
+- `MessagesPlaceholder` - For flexible message insertion
+
+All prompts are returned as `Runnable` instances that can be:
+
+- Invoked: `await prompt.invoke({ input: "..." })`
+- Streamed: `await prompt.stream({ input: "..." })`
+- Batched: `await prompt.batch([{ input: "..." }])`
+- Piped: `prompt.pipe(model).pipe(parser)`
+
+---
+
+## Error Handling
+
+```typescript
+import { pull } from "langchain/hub";
+
+try {
+  const prompt = await pull("non-existent/prompt");
+} catch (error) {
+  if (error.message.includes("404")) {
+    console.error("Prompt not found");
+  } else if (error.message.includes("unauthorized")) {
+    console.error("Invalid API key");
+  } else {
+    console.error("Error pulling prompt:", error);
+  }
+}
+```
+
+---
+
+## Security Considerations
+
+<Warning>
+  When using `secretsFromEnv: true` or `includeModel: true`, prompts can access environment variables. Only use these options with prompts from trusted sources.
+</Warning>
+
+<Warning>
+  API keys and secrets should be managed securely. Never commit secrets to version control. Use environment variables or secure secret management systems.
+</Warning>
+
+---
+
+## Related
+
+- [LangSmith Hub](https://smith.langchain.com/hub) - Browse and share prompts
+- [Prompts](/oss/javascript/core/prompts) - Creating and working with prompts
+- [LangSmith Documentation](https://docs.smith.langchain.com/) - LangSmith platform docs

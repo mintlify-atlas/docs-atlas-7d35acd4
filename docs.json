@@ -1,122 +1,131 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "LangChain.js",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#060814",
+    "light": "#7ccafa",
+    "dark": "#3c5c7c"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "https://media.brand.dev/f3f67d40-dd7e-420e-9f74-b33648ab58bc.png",
+  "logo": {
+    "light": "https://media.brand.dev/eb16b6af-4b63-43a4-8225-085b6f4195a8.png",
+    "dark": "https://media.brand.dev/eb16b6af-4b63-43a4-8225-085b6f4195a8.png"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/langchain-ai/langchainjs"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/langchain-ai/langchainjs"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Getting Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "installation",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "core-concepts/architecture",
+              "core-concepts/runnables",
+              "core-concepts/messages",
+              "core-concepts/chat-models",
+              "core-concepts/agents",
+              "core-concepts/tools",
+              "core-concepts/prompts"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Guides",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "guides/building-agents",
+              "guides/working-with-chat-models",
+              "guides/creating-tools",
+              "guides/prompt-engineering",
+              "guides/memory-and-history",
+              "guides/retrieval",
+              "guides/streaming",
+              "guides/callbacks-and-tracing"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Integrations",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "integrations/overview",
+              "integrations/chat-models",
+              "integrations/embeddings",
+              "integrations/vector-stores",
+              "integrations/document-loaders"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/contributing",
+              "development/creating-integrations",
+              "development/testing",
+              "development/monorepo-structure"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Core",
             "pages": [
-              "api-reference/introduction"
+              "api/core/runnables",
+              "api/core/messages",
+              "api/core/chat-models",
+              "api/core/embeddings",
+              "api/core/tools",
+              "api/core/prompts",
+              "api/core/output-parsers",
+              "api/core/callbacks"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "LangChain",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/langchain/agents",
+              "api/langchain/chat-models",
+              "api/langchain/stores",
+              "api/langchain/hub"
+            ]
+          },
+          {
+            "group": "Community",
+            "pages": [
+              "api/community/overview",
+              "api/community/document-loaders",
+              "api/community/vector-stores",
+              "api/community/retrievers"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/utilities/text-splitters",
+              "api/utilities/testing",
+              "api/utilities/context"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

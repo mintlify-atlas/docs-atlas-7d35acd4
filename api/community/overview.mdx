@@ -1,0 +1,145 @@
+---
+title: Community Package Overview
+description: Third-party integrations maintained by the LangChain community
+---
+
+The `@langchain/community` package contains community-maintained integrations for LangChain.js. These integrations extend LangChain's core functionality with support for various third-party services, databases, and tools.
+
+## What's in Community?
+
+The community package includes:
+
+- **Document Loaders** - Load documents from files, web sources, and APIs
+- **Vector Stores** - Store and search embeddings in various databases
+- **Retrievers** - Retrieve relevant documents using different search strategies
+- **Chat Models** - Connect to various LLM providers
+- **Embeddings** - Generate embeddings using different providers
+- **Caches** - Cache LLM responses in different backends
+- **Tools & Toolkits** - Ready-to-use tools for agents
+- **Callbacks** - Observability and monitoring integrations
+
+## Installation
+
+```bash
+npm install @langchain/community
+```
+
+Most integrations require additional peer dependencies for the specific service you're using. Check the documentation for each integration to see what additional packages you need to install.
+
+## Community vs Provider Packages
+
+**Community Package** (`@langchain/community`):
+- Contains many integrations in a single package
+- Community-maintained
+- All dependencies are optional peer dependencies
+- Install only what you need
+
+**Provider Packages** (e.g., `@langchain/openai`, `@langchain/anthropic`):
+- First-party integrations
+- One package per provider
+- Dependencies included
+- More actively maintained
+
+For production use, we recommend using dedicated provider packages when available.
+
+## Key Integrations
+
+### Popular Document Loaders
+
+- **File Loaders**: CSV, PDF, DOCX, EPUB, PPTX
+- **Web Loaders**: Cheerio, Puppeteer, Playwright, FireCrawl
+- **Cloud Loaders**: S3, Azure Blob Storage, Google Cloud Storage
+- **API Loaders**: GitHub, Notion, Confluence, Jira
+
+### Popular Vector Stores
+
+- **Cloud**: Chroma, Pinecone, Weaviate, Qdrant
+- **Self-hosted**: FAISS, HNSWlib, LanceDB
+- **Database Extensions**: PGVector, Supabase, Neon
+- **Enterprise**: Azure AI Search, Elasticsearch, OpenSearch
+
+### Popular Retrievers
+
+- **Search APIs**: Tavily, Arxiv
+- **Hybrid Search**: BM25, Vespa
+- **Specialized**: Zep (memory), Metal, Chaindesk
+
+## Usage Example
+
+```typescript
+import { CheerioWebBaseLoader } from "@langchain/community/document_loaders/web/cheerio";
+import { Chroma } from "@langchain/community/vectorstores/chroma";
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+// Load documents from a web page
+const loader = new CheerioWebBaseLoader("https://example.com");
+const docs = await loader.load();
+
+// Store in a vector database
+const vectorStore = await Chroma.fromDocuments(
+  docs,
+  new OpenAIEmbeddings(),
+  { collectionName: "example" }
+);
+
+// Search for relevant documents
+const results = await vectorStore.similaritySearch("query", 4);
+```
+
+## Environment Variables
+
+Many integrations require API keys or connection strings. Use environment variables to configure them:
+
+```bash
+# Example API keys
+OPENAI_API_KEY=your-key
+CHROMA_URL=http://localhost:8000
+SUPABASE_URL=your-url
+SUPABASE_PRIVATE_KEY=your-key
+```
+
+LangChain automatically reads these using the `getEnvironmentVariable` utility.
+
+## Peer Dependencies
+
+The community package lists all integrations as optional peer dependencies. Install only what you need:
+
+```bash
+# For Chroma vector store
+npm install chromadb
+
+# For PDF loading
+npm install pdf-parse
+
+# For web scraping
+npm install cheerio
+```
+
+Check the TypeScript errors or documentation to see which peer dependencies are required for your use case.
+
+## Contributing
+
+The community package welcomes contributions! To add a new integration:
+
+1. Follow the [Integration Guide](https://github.com/langchain-ai/langchainjs/blob/main/.github/contributing/INTEGRATIONS.md)
+2. Add tests (unit and integration)
+3. Document your integration
+4. Submit a pull request
+
+For popular integrations, consider creating a dedicated provider package instead.
+
+## Support
+
+Since integrations are community-maintained, support varies by integration:
+
+- Check the integration's source code for implementation details
+- File issues on [GitHub](https://github.com/langchain-ai/langchainjs/issues)
+- Ask questions on the [LangChain Forum](https://forum.langchain.com)
+- Check the third-party service's documentation
+
+## Learn More
+
+- [Document Loaders](/api/community/document-loaders)
+- [Vector Stores](/api/community/vector-stores)
+- [Retrievers](/api/community/retrievers)
+- [Core Concepts](/concepts/core)

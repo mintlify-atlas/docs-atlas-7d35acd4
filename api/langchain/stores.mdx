@@ -1,0 +1,328 @@
+---
+title: Stores
+description: API reference for key-value storage implementations
+---
+
+The `langchain` package provides storage implementations for persisting data in various backends. These stores implement the `BaseStore` interface and can be used for caching, memory, and document storage.
+
+## Available Stores
+
+### InMemoryStore
+
+In-memory key-value store from `@langchain/core/stores`.
+
+```typescript
+import { InMemoryStore } from "langchain";
+
+const store = new InMemoryStore();
+
+await store.mset([["key1", "value1"], ["key2", "value2"]]);
+const values = await store.mget(["key1", "key2"]);
+console.log(values); // ["value1", "value2"]
+```
+
+**Source:** Re-exported from `@langchain/core/stores`
+
+---
+
+### LocalFileStore
+
+File system implementation of the BaseStore for storing key-value pairs as files.
+
+```typescript
+import { LocalFileStore } from "langchain/storage";
+
+const store = await LocalFileStore.fromPath("./my-store");
+
+await store.mset([
+  ["key1", new TextEncoder().encode("value1")],
+  ["key2", new TextEncoder().encode("value2")],
+]);
+
+const values = await store.mget(["key1", "key2"]);
+console.log(values.map(v => new TextDecoder().decode(v)));
+// ["value1", "value2"]
+```
+
+**Constructor:**
+
+<ParamField path="fields.rootPath" type="string" required>
+  The root directory path where files will be stored.
+</ParamField>
+
+**Static Methods:**
+
+<ParamField path="fromPath(rootPath)" type="static">
+  Creates a new LocalFileStore instance. Automatically creates the directory if it doesn't exist.
+  
+  **Parameters:**
+  - `rootPath: string` - Directory path for storage
+  
+  **Returns:** `Promise<LocalFileStore>`
+</ParamField>
+
+<Warning>
+  **Security Notice:** This file store can alter any text file in the provided directory and subfolders. Ensure the path is isolated from other important files.
+</Warning>
+
+**Source:** `libs/langchain/src/storage/file_system.ts`
+
+---
+
+### EncoderBackedStore
+
+Provides a layer of abstraction over base storage, allowing encoding/decoding of keys and values.
+
+```typescript
+import { EncoderBackedStore } from "langchain/storage";
+import { InMemoryStore } from "langchain";
+
+const baseStore = new InMemoryStore<string, string>();
+
+const encodedStore = new EncoderBackedStore({
+  store: baseStore,
+  keyEncoder: (key: number) => `num_${key}`,
+  valueSerializer: (value: object) => JSON.stringify(value),
+  valueDeserializer: (value: string) => JSON.parse(value),
+});
+
+await encodedStore.mset([
+  [1, { name: "Alice" }],
+  [2, { name: "Bob" }],
+]);
+
+const values = await encodedStore.mget([1, 2]);
+console.log(values); // [{ name: "Alice" }, { name: "Bob" }]
+```
+
+**Constructor:**
+
+<ParamField path="fields.store" type="BaseStore<string, SerializedType>" required>
+  The underlying store that handles the actual storage.
+</ParamField>
+
+<ParamField path="fields.keyEncoder" type="(key: K) => string" required>
+  Function to encode keys before storage.
+</ParamField>
+
+<ParamField path="fields.valueSerializer" type="(value: V) => SerializedType" required>
+  Function to serialize values before storage.
+</ParamField>
+
+<ParamField path="fields.valueDeserializer" type="(value: SerializedType) => V" required>
+  Function to deserialize values after retrieval.
+</ParamField>
+
+**Source:** `libs/langchain/src/storage/encoder_backed.ts`
+
+---
+
+## Helper Functions
+
+### createDocumentStoreFromByteStore
+
+Creates a document store from a byte store, automatically handling Document serialization.
+
+```typescript
+import { createDocumentStoreFromByteStore } from "langchain/storage";
+import { LocalFileStore } from "langchain/storage";
+import { Document } from "langchain";
+
+const byteStore = await LocalFileStore.fromPath("./documents");
+const docStore = createDocumentStoreFromByteStore(byteStore);
+
+const doc = new Document({
+  pageContent: "This is a document",
+  metadata: { source: "example.txt" },
+});
+
+await docStore.mset([["doc1", doc]]);
+const [retrievedDoc] = await docStore.mget(["doc1"]);
+console.log(retrievedDoc?.pageContent);
+// "This is a document"
+```
+
+**Parameters:**
+
+<ParamField path="store" type="BaseStore<string, Uint8Array>" required>
+  A byte store that stores Uint8Array values.
+</ParamField>
+
+**Returns:** `EncoderBackedStore<string, Document, Uint8Array>` - A store that handles Document objects.
+
+**Source:** `libs/langchain/src/storage/encoder_backed.ts:87`
+
+---
+
+## BaseStore Interface
+
+All stores implement the following interface:
+
+### Methods
+
+<ParamField path="mget(keys)" type="method">
+  Retrieve multiple values by their keys.
+  
+  **Parameters:**
+  - `keys: K[]` - Array of keys to retrieve
+  
+  **Returns:** `Promise<(V | undefined)[]>` - Array of values (undefined for missing keys)
+</ParamField>
+
+<ParamField path="mset(keyValuePairs)" type="method">
+  Set multiple key-value pairs.
+  
+  **Parameters:**
+  - `keyValuePairs: [K, V][]` - Array of [key, value] tuples
+  
+  **Returns:** `Promise<void>`
+</ParamField>
+
+<ParamField path="mdelete(keys)" type="method">
+  Delete multiple keys.
+  
+  **Parameters:**
+  - `keys: K[]` - Array of keys to delete
+  
+  **Returns:** `Promise<void>`
+</ParamField>
+
+<ParamField path="yieldKeys(prefix?)" type="method">
+  Asynchronously yield keys from the store, optionally filtered by prefix.
+  
+  **Parameters:**
+  - `prefix?: string` - Optional prefix to filter keys
+  
+  **Returns:** `AsyncGenerator<K>` - Async iterator of keys
+</ParamField>
+
+---
+
+## Examples
+
+### Storing Chat Messages
+
+```typescript
+import { LocalFileStore } from "langchain/storage";
+import { AIMessage, HumanMessage } from "langchain";
+
+const store = await LocalFileStore.fromPath("./messages");
+
+// Store messages
+await store.mset(
+  Array.from({ length: 5 }).map((_, index) => [
+    `message:id:${index}`,
+    new TextEncoder().encode(
+      JSON.stringify(
+        index % 2 === 0
+          ? new AIMessage("AI response...")
+          : new HumanMessage("Human message...")
+      )
+    ),
+  ])
+);
+
+// Retrieve messages
+const messages = await store.mget(["message:id:0", "message:id:1"]);
+console.log(messages.map(v => new TextDecoder().decode(v)));
+
+// Clean up
+for await (const key of store.yieldKeys("message:id:")) {
+  await store.mdelete([key]);
+}
+```
+
+### Custom Encoder for Typed Storage
+
+```typescript
+import { EncoderBackedStore } from "langchain/storage";
+import { InMemoryStore } from "langchain";
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+const baseStore = new InMemoryStore<string, string>();
+
+const userStore = new EncoderBackedStore<number, User, string>({
+  store: baseStore,
+  keyEncoder: (id) => `user:${id}`,
+  valueSerializer: (user) => JSON.stringify(user),
+  valueDeserializer: (json) => JSON.parse(json),
+});
+
+await userStore.mset([
+  [1, { id: 1, name: "Alice", email: "alice@example.com" }],
+  [2, { id: 2, name: "Bob", email: "bob@example.com" }],
+]);
+
+const users = await userStore.mget([1, 2]);
+console.log(users);
+```
+
+### Document Storage with Metadata
+
+```typescript
+import { createDocumentStoreFromByteStore } from "langchain/storage";
+import { LocalFileStore } from "langchain/storage";
+import { Document } from "langchain";
+
+const byteStore = await LocalFileStore.fromPath("./docs");
+const docStore = createDocumentStoreFromByteStore(byteStore);
+
+const documents = [
+  new Document({
+    pageContent: "Chapter 1: Introduction",
+    metadata: { chapter: 1, page: 1 },
+  }),
+  new Document({
+    pageContent: "Chapter 2: Background",
+    metadata: { chapter: 2, page: 5 },
+  }),
+];
+
+await docStore.mset(documents.map((doc, i) => [`doc:${i}`, doc]));
+
+const retrieved = await docStore.mget(["doc:0", "doc:1"]);
+retrieved.forEach(doc => {
+  console.log(doc?.pageContent);
+  console.log(doc?.metadata);
+});
+```
+
+### Iterating Over Keys
+
+```typescript
+import { InMemoryStore } from "langchain";
+
+const store = new InMemoryStore<string, string>();
+
+await store.mset([
+  ["user:1", "Alice"],
+  ["user:2", "Bob"],
+  ["config:theme", "dark"],
+  ["config:lang", "en"],
+]);
+
+// Iterate over all user keys
+for await (const key of store.yieldKeys("user:")) {
+  console.log(key);
+}
+// Output: user:1, user:2
+
+// Iterate over all config keys
+for await (const key of store.yieldKeys("config:")) {
+  console.log(key);
+}
+// Output: config:theme, config:lang
+```
+
+---
+
+## Related
+
+- [Documents](/oss/javascript/core/documents) - Document data structure
+- [Memory](/oss/javascript/core/memory) - Memory systems using stores
+- [BaseStore Reference](https://api.js.langchain.com/classes/langchain_core_stores.BaseStore.html) - Core store interface

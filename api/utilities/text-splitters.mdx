@@ -1,0 +1,371 @@
+---
+title: Text Splitters
+description: Split large documents into manageable chunks for processing and retrieval
+---
+
+Text splitters are utilities that help you break down large documents into smaller chunks while preserving semantic meaning and context. They're essential for retrieval-augmented generation (RAG) pipelines and working with documents that exceed model context windows.
+
+## Installation
+
+```bash
+npm install @langchain/textsplitters @langchain/core
+```
+
+## Core Concepts
+
+All text splitters extend the `TextSplitter` base class and implement the `splitText()` method. They support:
+
+- **Chunk Size**: Maximum size of each chunk (default: 1000)
+- **Chunk Overlap**: Number of characters to overlap between chunks (default: 200)
+- **Length Function**: Custom function to measure text length
+- **Separator Preservation**: Keep or remove separators when splitting
+
+## Available Splitters
+
+### CharacterTextSplitter
+
+Splits text based on a single separator character or string.
+
+```typescript
+import { CharacterTextSplitter } from "@langchain/textsplitters";
+
+const splitter = new CharacterTextSplitter({
+  separator: "\n\n",
+  chunkSize: 1000,
+  chunkOverlap: 200,
+});
+
+const chunks = await splitter.splitText(longText);
+```
+
+**Parameters:**
+- `separator` (string): The string to split on (default: `"\n\n"`)
+- `chunkSize` (number): Maximum chunk size
+- `chunkOverlap` (number): Overlap between chunks
+- `keepSeparator` (boolean): Whether to keep the separator in chunks
+
+### RecursiveCharacterTextSplitter
+
+The most versatile splitter that tries multiple separators in order, recursively splitting until chunks are small enough.
+
+```typescript
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+
+const splitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 1000,
+  chunkOverlap: 200,
+  separators: ["\n\n", "\n", " ", ""],
+});
+
+const chunks = await splitter.splitText(longText);
+```
+
+**Language-Specific Splitting:**
+
+The recursive splitter includes optimized separators for many programming languages:
+
+```typescript
+const splitter = RecursiveCharacterTextSplitter.fromLanguage("js", {
+  chunkSize: 1000,
+  chunkOverlap: 200,
+});
+```
+
+**Supported Languages:**
+- `"cpp"` - C++
+- `"go"` - Go
+- `"java"` - Java
+- `"js"` - JavaScript/TypeScript
+- `"php"` - PHP
+- `"proto"` - Protocol Buffers
+- `"python"` - Python
+- `"rst"` - reStructuredText
+- `"ruby"` - Ruby
+- `"rust"` - Rust
+- `"scala"` - Scala
+- `"swift"` - Swift
+- `"markdown"` - Markdown
+- `"latex"` - LaTeX
+- `"html"` - HTML
+- `"sol"` - Solidity
+
+### TokenTextSplitter
+
+Splits text based on token count using tiktoken encoding.
+
+```typescript
+import { TokenTextSplitter } from "@langchain/textsplitters";
+
+const splitter = new TokenTextSplitter({
+  encodingName: "gpt2",
+  chunkSize: 1000,
+  chunkOverlap: 200,
+});
+
+const chunks = await splitter.splitText(longText);
+```
+
+**Parameters:**
+- `encodingName` (TiktokenEncoding): Tokenizer to use (default: `"gpt2"`)
+- `allowedSpecial` ("all" | string[]): Special tokens to allow
+- `disallowedSpecial` ("all" | string[]): Special tokens to disallow
+
+### MarkdownTextSplitter
+
+Specialized splitter for Markdown documents that respects document structure.
+
+```typescript
+import { MarkdownTextSplitter } from "@langchain/textsplitters";
+
+const splitter = new MarkdownTextSplitter({
+  chunkSize: 1000,
+  chunkOverlap: 200,
+});
+
+const chunks = await splitter.splitText(markdownText);
+```
+
+Splits on:
+- Headings (## through ######)
+- Code blocks
+- Horizontal rules
+- Paragraphs
+
+### LatexTextSplitter
+
+Specialized splitter for LaTeX documents.
+
+```typescript
+import { LatexTextSplitter } from "@langchain/textsplitters";
+
+const splitter = new LatexTextSplitter({
+  chunkSize: 1000,
+  chunkOverlap: 200,
+});
+
+const chunks = await splitter.splitText(latexText);
+```
+
+Splits on:
+- Sections and subsections
+- Environments (enumerate, itemize, etc.)
+- Math environments
+
+## Working with Documents
+
+### Splitting Documents
+
+Text splitters can work directly with Document objects:
+
+```typescript
+import { Document } from "@langchain/core/documents";
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+
+const documents = [
+  new Document({ 
+    pageContent: "Long text...",
+    metadata: { source: "doc1.txt" }
+  }),
+];
+
+const splitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 1000,
+  chunkOverlap: 200,
+});
+
+const splitDocs = await splitter.splitDocuments(documents);
+// Each chunk inherits the original document's metadata
+```
+
+### Creating Documents from Text
+
+You can also create documents directly from text arrays:
+
+```typescript
+const texts = ["Text 1", "Text 2"];
+const metadatas = [
+  { source: "doc1.txt" },
+  { source: "doc2.txt" },
+];
+
+const documents = await splitter.createDocuments(texts, metadatas);
+```
+
+### Chunk Headers
+
+Add headers and overlap indicators to chunks:
+
+```typescript
+const splitDocs = await splitter.splitDocuments(documents, {
+  chunkHeader: "--- Document Chunk ---\n",
+  chunkOverlapHeader: "(continued from previous chunk) ",
+  appendChunkOverlapHeader: true,
+});
+```
+
+## Custom Length Functions
+
+Provide a custom function to measure text length:
+
+```typescript
+// Count by words instead of characters
+const splitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 100, // 100 words
+  chunkOverlap: 20,
+  lengthFunction: (text) => text.split(/\s+/).length,
+});
+
+// Async length function (e.g., using external tokenizer)
+const splitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 1000,
+  chunkOverlap: 200,
+  lengthFunction: async (text) => {
+    const tokens = await someTokenizer.encode(text);
+    return tokens.length;
+  },
+});
+```
+
+## Line Number Tracking
+
+Text splitters automatically track line numbers in metadata:
+
+```typescript
+const documents = await splitter.createDocuments([longText]);
+
+console.log(documents[0].metadata.loc.lines);
+// { from: 1, to: 42 }
+
+console.log(documents[1].metadata.loc.lines);
+// { from: 40, to: 87 }
+```
+
+This is particularly useful for:
+- Code analysis and debugging
+- Citation and reference tracking
+- Maintaining document structure
+
+## Best Practices
+
+### Choosing Chunk Size
+
+- **Small chunks (200-500)**: Better for precise retrieval, more overhead
+- **Medium chunks (500-1000)**: Good balance for most use cases
+- **Large chunks (1000-2000)**: More context, less precise retrieval
+
+### Choosing Overlap
+
+- Use 10-20% of chunk size as overlap
+- Larger overlap helps preserve context across boundaries
+- Too much overlap increases storage and processing costs
+
+### Choosing a Splitter
+
+- **RecursiveCharacterTextSplitter**: Default choice for most text
+- **MarkdownTextSplitter**: Use for Markdown documents to preserve structure
+- **TokenTextSplitter**: When token count matters (e.g., for LLM input)
+- **CharacterTextSplitter**: Simple use cases with clear separators
+- **Language-specific**: Use `.fromLanguage()` for code files
+
+### Document Transformers
+
+All text splitters extend `BaseDocumentTransformer`, so they work in transformation pipelines:
+
+```typescript
+import { Document } from "@langchain/core/documents";
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+
+const splitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 1000,
+  chunkOverlap: 200,
+});
+
+// Use in a pipeline
+const processedDocs = await splitter.transformDocuments(documents);
+```
+
+## Common Patterns
+
+### RAG Pipeline
+
+```typescript
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+// 1. Split documents
+const splitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 1000,
+  chunkOverlap: 200,
+});
+const splitDocs = await splitter.splitDocuments(documents);
+
+// 2. Create embeddings and store
+const vectorStore = await MemoryVectorStore.fromDocuments(
+  splitDocs,
+  new OpenAIEmbeddings()
+);
+
+// 3. Use for retrieval
+const results = await vectorStore.similaritySearch(query);
+```
+
+### Code Analysis
+
+```typescript
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { Document } from "@langchain/core/documents";
+
+const codeSplitter = RecursiveCharacterTextSplitter.fromLanguage("js", {
+  chunkSize: 500,
+  chunkOverlap: 50,
+});
+
+const codeDoc = new Document({
+  pageContent: sourceCode,
+  metadata: { filename: "app.ts" },
+});
+
+const chunks = await codeSplitter.splitDocuments([codeDoc]);
+
+// Each chunk contains a logical code segment with line numbers
+for (const chunk of chunks) {
+  console.log(
+    `Lines ${chunk.metadata.loc.lines.from}-${chunk.metadata.loc.lines.to}:`
+  );
+  console.log(chunk.pageContent);
+}
+```
+
+## API Reference
+
+### TextSplitter (Base Class)
+
+**Properties:**
+- `chunkSize: number` - Maximum size of each chunk
+- `chunkOverlap: number` - Number of characters to overlap
+- `keepSeparator: boolean` - Whether to keep separators in output
+- `lengthFunction: (text: string) => number | Promise<number>` - Function to measure text length
+
+**Methods:**
+- `splitText(text: string): Promise<string[]>` - Split text into chunks
+- `splitDocuments(documents: Document[], options?: ChunkHeaderOptions): Promise<Document[]>` - Split documents
+- `createDocuments(texts: string[], metadatas?: Record<string, any>[], options?: ChunkHeaderOptions): Promise<Document[]>` - Create documents from texts
+- `transformDocuments(documents: Document[], options?: ChunkHeaderOptions): Promise<Document[]>` - Transform documents (alias for splitDocuments)
+
+### TextSplitterChunkHeaderOptions
+
+```typescript
+interface TextSplitterChunkHeaderOptions {
+  chunkHeader?: string;              // Header to prepend to each chunk
+  chunkOverlapHeader?: string;       // Header for overlapping chunks
+  appendChunkOverlapHeader?: boolean; // Whether to add overlap header
+}
+```
+
+## Related
+
+- [Document Loaders](/api/document-loaders) - Load documents before splitting
+- [Vector Stores](/api/vector-stores) - Store split documents for retrieval
+- [Retrievers](/api/retrievers) - Retrieve relevant document chunks
+- [Documents](/api/core/documents) - Document object structure

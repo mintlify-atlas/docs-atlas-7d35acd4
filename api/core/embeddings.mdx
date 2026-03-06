@@ -1,0 +1,159 @@
+---
+title: "Embeddings"
+description: "Base classes for creating and working with text embeddings"
+---
+
+## Overview
+
+Embeddings convert text into vector representations, enabling semantic search, similarity comparison, and other vector operations.
+
+## Embeddings Class
+
+**Import:**
+```typescript
+import { Embeddings } from "@langchain/core/embeddings";
+```
+
+### Methods
+
+<ParamField path="embedDocuments" type="method">
+  Embed multiple documents
+  
+  ```typescript
+  async embedDocuments(texts: string[]): Promise<number[][]>
+  ```
+</ParamField>
+
+<ParamField path="embedQuery" type="method">
+  Embed a single query
+  
+  ```typescript
+  async embedQuery(text: string): Promise<number[]>
+  ```
+</ParamField>
+
+## Usage Examples
+
+### OpenAI Embeddings
+
+```typescript
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+const embeddings = new OpenAIEmbeddings({
+  model: "text-embedding-3-small",
+});
+
+// Embed a query
+const queryVector = await embeddings.embedQuery(
+  "What is the capital of France?"
+);
+console.log(queryVector.length); // 1536
+
+// Embed multiple documents
+const docVectors = await embeddings.embedDocuments([
+  "Paris is the capital of France.",
+  "London is the capital of England.",
+  "Berlin is the capital of Germany."
+]);
+console.log(docVectors.length); // 3
+```
+
+### Similarity Search
+
+```typescript
+import { cosineSimilarity } from "@langchain/core/utils/math";
+
+const query = "French capital";
+const docs = [
+  "Paris is the capital of France.",
+  "Tokyo is the capital of Japan."
+];
+
+const queryEmbedding = await embeddings.embedQuery(query);
+const docEmbeddings = await embeddings.embedDocuments(docs);
+
+const similarities = docEmbeddings.map(docEmbed => 
+  cosineSimilarity(queryEmbedding, docEmbed)
+);
+
+console.log(similarities); // [0.85, 0.32]
+```
+
+### Caching Embeddings
+
+```typescript
+import { CacheBackedEmbeddings } from "@langchain/core/embeddings";
+import { InMemoryStore } from "@langchain/core/stores";
+
+const underlyingEmbeddings = new OpenAIEmbeddings();
+const store = new InMemoryStore();
+
+const cachedEmbeddings = CacheBackedEmbeddings.fromBytesStore(
+  underlyingEmbeddings,
+  store,
+  {
+    namespace: underlyingEmbeddings.model
+  }
+);
+
+// First call makes API request
+const result1 = await cachedEmbeddings.embedQuery("Hello");
+
+// Second call uses cache
+const result2 = await cachedEmbeddings.embedQuery("Hello");
+```
+
+## Implementing Custom Embeddings
+
+```typescript
+import { Embeddings } from "@langchain/core/embeddings";
+
+class CustomEmbeddings extends Embeddings {
+  async embedDocuments(texts: string[]): Promise<number[][]> {
+    // Your implementation
+    return texts.map(text => this.generateVector(text));
+  }
+
+  async embedQuery(text: string): Promise<number[]> {
+    // Your implementation
+    return this.generateVector(text);
+  }
+
+  private generateVector(text: string): number[] {
+    // Generate embedding vector
+    return Array(1536).fill(0).map(() => Math.random());
+  }
+}
+```
+
+## Popular Embedding Models
+
+<CardGroup cols={2}>
+  <Card title="OpenAI" icon="openai">
+    `text-embedding-3-small` (1536d)
+    `text-embedding-3-large` (3072d)
+  </Card>
+  <Card title="Cohere" icon="c">
+    `embed-english-v3.0`
+    `embed-multilingual-v3.0`
+  </Card>
+  <Card title="Google" icon="google">
+    `text-embedding-004`
+    Vertex AI embeddings
+  </Card>
+  <Card title="Local" icon="laptop">
+    Ollama embeddings
+    Transformers.js
+  </Card>
+</CardGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Embedding Integrations" href="/integrations/embeddings">
+    Available embedding providers
+  </Card>
+  <Card title="Vector Stores" href="/api/core/vector-stores">
+    Using embeddings with vector stores
+  </Card>
+</CardGroup>

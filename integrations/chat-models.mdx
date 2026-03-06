@@ -1,0 +1,320 @@
+---
+title: Chat Models
+description: Connect to various LLM providers for chat-based interactions
+---
+
+LangChain.js supports a wide range of chat model providers through dedicated integration packages. Each provider package contains the chat model implementation along with any provider-specific features.
+
+## Popular Chat Model Providers
+
+<CardGroup cols={2}>
+  <Card title="OpenAI" icon="openai" href="#openai">
+    GPT-4, GPT-4o, GPT-3.5 Turbo, and more
+  </Card>
+  
+  <Card title="Anthropic" icon="anthropic" href="#anthropic">
+    Claude 3.5 Sonnet, Claude 3 Opus, and Haiku
+  </Card>
+  
+  <Card title="Google" icon="google" href="#google">
+    Gemini 2.0, Gemini 1.5 Pro and Flash
+  </Card>
+  
+  <Card title="Mistral AI" icon="mistral" href="#mistral-ai">
+    Mistral Large, Medium, and Small models
+  </Card>
+  
+  <Card title="Cohere" icon="cohere" href="#cohere">
+    Command R and Command R+ models
+  </Card>
+  
+  <Card title="Groq" icon="groq" href="#groq">
+    Fast inference with Llama, Mixtral, and Gemma
+  </Card>
+</CardGroup>
+
+## OpenAI
+
+The `@langchain/openai` package provides access to OpenAI's chat models including GPT-4, GPT-4o, and GPT-3.5 Turbo.
+
+### Installation
+
+```bash
+npm install @langchain/openai
+```
+
+### Usage
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o",
+  temperature: 0.7,
+  apiKey: process.env.OPENAI_API_KEY, // defaults to process.env.OPENAI_API_KEY
+});
+
+const response = await model.invoke("Tell me a joke about programming");
+console.log(response.content);
+```
+
+### Streaming
+
+```typescript
+const stream = await model.stream("Count from 1 to 10");
+
+for await (const chunk of stream) {
+  console.log(chunk.content);
+}
+```
+
+### Tool Calling
+
+```typescript
+import { z } from "zod";
+import { tool } from "@langchain/core/tools";
+
+const weatherTool = tool(
+  async ({ location }) => {
+    return `The weather in ${location} is sunny and 72°F`;
+  },
+  {
+    name: "get_weather",
+    description: "Get the current weather for a location",
+    schema: z.object({
+      location: z.string().describe("The city and state, e.g. San Francisco, CA"),
+    }),
+  }
+);
+
+const modelWithTools = model.bindTools([weatherTool]);
+const result = await modelWithTools.invoke("What's the weather in San Francisco?");
+```
+
+## Anthropic
+
+The `@langchain/anthropic` package provides access to Anthropic's Claude models.
+
+### Installation
+
+```bash
+npm install @langchain/anthropic
+```
+
+### Usage
+
+```typescript
+import { ChatAnthropic } from "@langchain/anthropic";
+
+const model = new ChatAnthropic({
+  model: "claude-3-5-sonnet-20241022",
+  temperature: 0.7,
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+const response = await model.invoke("Explain quantum computing in simple terms");
+console.log(response.content);
+```
+
+### Vision Support
+
+```typescript
+import { HumanMessage } from "@langchain/core/messages";
+
+const response = await model.invoke([
+  new HumanMessage({
+    content: [
+      { type: "text", text: "What's in this image?" },
+      {
+        type: "image_url",
+        image_url: {
+          url: "https://example.com/image.jpg",
+        },
+      },
+    ],
+  }),
+]);
+```
+
+## Google
+
+The `@langchain/google-genai` package provides access to Google's Gemini models.
+
+### Installation
+
+```bash
+npm install @langchain/google-genai
+```
+
+### Usage
+
+```typescript
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+
+const model = new ChatGoogleGenerativeAI({
+  model: "gemini-2.0-flash-exp",
+  temperature: 0.7,
+  apiKey: process.env.GOOGLE_API_KEY,
+});
+
+const response = await model.invoke("Write a haiku about coding");
+console.log(response.content);
+```
+
+## Mistral AI
+
+The `@langchain/mistralai` package provides access to Mistral's models.
+
+### Installation
+
+```bash
+npm install @langchain/mistralai
+```
+
+### Usage
+
+```typescript
+import { ChatMistralAI } from "@langchain/mistralai";
+
+const model = new ChatMistralAI({
+  model: "mistral-large-latest",
+  temperature: 0.7,
+  apiKey: process.env.MISTRAL_API_KEY,
+});
+
+const response = await model.invoke("Explain the concept of recursion");
+console.log(response.content);
+```
+
+## Cohere
+
+The `@langchain/cohere` package provides access to Cohere's Command models.
+
+### Installation
+
+```bash
+npm install @langchain/cohere
+```
+
+### Usage
+
+```typescript
+import { ChatCohere } from "@langchain/cohere";
+
+const model = new ChatCohere({
+  model: "command-r-plus",
+  temperature: 0.7,
+  apiKey: process.env.COHERE_API_KEY,
+});
+
+const response = await model.invoke("Summarize the benefits of TypeScript");
+console.log(response.content);
+```
+
+## Groq
+
+The `@langchain/groq` package provides fast inference with various open-source models.
+
+### Installation
+
+```bash
+npm install @langchain/groq
+```
+
+### Usage
+
+```typescript
+import { ChatGroq } from "@langchain/groq";
+
+const model = new ChatGroq({
+  model: "llama-3.3-70b-versatile",
+  temperature: 0.7,
+  apiKey: process.env.GROQ_API_KEY,
+});
+
+const response = await model.invoke("What are the advantages of functional programming?");
+console.log(response.content);
+```
+
+## Additional Providers
+
+<CardGroup cols={2}>
+  <Card title="AWS Bedrock" icon="aws">
+    `@langchain/aws` - Access Claude, Llama, and other models via AWS
+  </Card>
+  
+  <Card title="Azure OpenAI" icon="microsoft">
+    `@langchain/openai` - Use OpenAI models through Azure
+  </Card>
+  
+  <Card title="Ollama" icon="ollama">
+    `@langchain/ollama` - Run local models with Ollama
+  </Card>
+  
+  <Card title="DeepSeek" icon="deepseek">
+    `@langchain/deepseek` - DeepSeek models for reasoning
+  </Card>
+  
+  <Card title="Cerebras" icon="cerebras">
+    `@langchain/cerebras` - Fast inference with Cerebras hardware
+  </Card>
+  
+  <Card title="xAI" icon="x">
+    `@langchain/xai` - Grok models from xAI
+  </Card>
+</CardGroup>
+
+## Community Integrations
+
+Additional chat models are available in `@langchain/community`:
+
+```bash
+npm install @langchain/community
+```
+
+```typescript
+import { ChatFireworks } from "@langchain/community/chat_models/fireworks";
+import { ChatDeepInfra } from "@langchain/community/chat_models/deepinfra";
+import { ChatMinimax } from "@langchain/community/chat_models/minimax";
+```
+
+## Common Features
+
+All chat models in LangChain.js implement the `BaseChatModel` interface and support:
+
+- **Invoke**: Single message generation
+- **Stream**: Token-by-token streaming
+- **Batch**: Process multiple inputs in parallel
+- **Tool Calling**: Function/tool invocation (where supported by provider)
+- **Structured Output**: Extract structured data with schemas
+- **Vision**: Image understanding (where supported by provider)
+- **Callbacks**: Track tokens, timing, and errors
+
+## Best Practices
+
+1. **Use environment variables** for API keys
+2. **Enable streaming** for better user experience
+3. **Set appropriate timeouts** for production applications
+4. **Monitor token usage** to control costs
+5. **Handle rate limits** with retries and backoff
+6. **Use batch processing** when possible for efficiency
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Building Chains" href="/guides/chains">
+    Chain chat models with other components
+  </Card>
+  
+  <Card title="Agents" href="/guides/agents">
+    Build autonomous agents with tool calling
+  </Card>
+  
+  <Card title="Prompt Templates" href="/guides/prompt-templates">
+    Create reusable prompts for your models
+  </Card>
+  
+  <Card title="Embeddings" href="/integrations/embeddings">
+    Generate embeddings for semantic search
+  </Card>
+</CardGroup>

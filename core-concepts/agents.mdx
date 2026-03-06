@@ -1,0 +1,597 @@
+---
+title: Agents
+description: Building autonomous systems with LangChain agents
+---
+
+## Overview
+
+Agents are autonomous systems that use language models to decide which actions to take. Unlike simple chains that follow a predetermined sequence, agents can reason about tasks, choose tools dynamically, and iterate until they achieve their goal.
+
+<Info>
+LangChain.js provides a production-ready ReAct agent implementation via `createAgent()` in the `langchain` package
+</Info>
+
+## ReAct Pattern
+
+LangChain agents follow the ReAct (Reasoning + Acting) pattern:
+
+1. **Reason**: The agent analyzes the task and decides what to do
+2. **Act**: The agent calls tools or provides an answer
+3. **Observe**: The agent examines tool results
+4. **Repeat**: Steps 1-3 continue until the task is complete
+
+```typescript
+import { createAgent } from "langchain";
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+
+const searchTool = tool(
+  async ({ query }) => {
+    // Simulate a search
+    return `Search results for: ${query}`;
+  },
+  {
+    name: "search",
+    description: "Search for information on the internet",
+    schema: z.object({
+      query: z.string().describe("The search query"),
+    }),
+  }
+);
+
+const agent = createAgent({
+  llm: "openai:gpt-4o",
+  tools: [searchTool],
+  prompt: "You are a helpful research assistant.",
+});
+
+const result = await agent.invoke({
+  messages: [{ role: "user", content: "What is LangChain?" }],
+});
+
+console.log(result.messages[result.messages.length - 1].content);
+```
+
+## Creating Agents
+
+### Basic Agent
+
+The simplest agent needs a model and tools:
+
+```typescript
+import { createAgent } from "langchain";
+import { ChatOpenAI } from "@langchain/openai";
+
+const agent = createAgent({
+  llm: new ChatOpenAI({ model: "gpt-4o" }),
+  tools: [searchTool, calculatorTool],
+});
+```
+
+Using string identifiers:
+
+```typescript
+const agent = createAgent({
+  llm: "openai:gpt-4o",
+  tools: [searchTool, calculatorTool],
+});
+```
+
+### With System Prompt
+
+Guide the agent's behavior:
+
+```typescript
+const agent = createAgent({
+  llm: "openai:gpt-4o",
+  tools: [searchTool],
+  prompt: "You are a helpful research assistant. Always cite your sources.",
+});
+```
+
+Using SystemMessage:
+
+```typescript
+import { SystemMessage } from "@langchain/core/messages";
+
+const agent = createAgent({
+  llm: "openai:gpt-4o",
+  tools: [searchTool],
+  prompt: new SystemMessage(
+    "You are a helpful research assistant. Always cite your sources."
+  ),
+});
+```
+
+### Dynamic Prompts
+
+Create prompts based on state:
+
+```typescript
+const agent = createAgent({
+  llm: "openai:gpt-4o",
+  tools: [searchTool],
+  prompt: (state) => {
+    const messageCount = state.messages.length;
+    return `You are a helpful assistant. Message count: ${messageCount}`;
+  },
+});
+```
+
+## Using Agents
+
+### Invoke
+
+Run the agent to completion:
+
+```typescript
+const result = await agent.invoke({
+  messages: [{ role: "user", content: "What's the weather in SF?" }],
+});
+
+// Access the final response
+const finalMessage = result.messages[result.messages.length - 1];
+console.log(finalMessage.content);
+```
+
+### Stream
+
+Get updates as the agent works:
+
+```typescript
+const stream = await agent.stream(
+  {
+    messages: [{ role: "user", content: "Research LangChain" }],
+  },
+  { streamMode: "values" }
+);
+
+for await (const chunk of stream) {
+  const lastMessage = chunk.messages[chunk.messages.length - 1];
+  console.log(lastMessage.content);
+}
+```
+
+Stream events:
+
+```typescript
+const stream = await agent.stream(
+  {
+    messages: [{ role: "user", content: "Search for news" }],
+  },
+  { streamMode: "updates" }
+);
+
+for await (const update of stream) {
+  console.log("Update:", update);
+}
+```
+
+## Tools
+
+Tools give agents abilities. Create them using the `tool()` function:
+
+```typescript
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+
+const weatherTool = tool(
+  async ({ location }) => {
+    // Call a weather API
+    const temp = Math.floor(Math.random() * 30) + 50;
+    return `The weather in ${location} is ${temp}°F`;
+  },
+  {
+    name: "get_weather",
+    description: "Get the current weather for a location",
+    schema: z.object({
+      location: z.string().describe("The city name"),
+    }),
+  }
+);
+
+const calculatorTool = tool(
+  async ({ operation, a, b }) => {
+    const ops = {
+      add: (a, b) => a + b,
+      subtract: (a, b) => a - b,
+      multiply: (a, b) => a * b,
+      divide: (a, b) => a / b,
+    };
+    return String(ops[operation](a, b));
+  },
+  {
+    name: "calculator",
+    description: "Perform basic arithmetic operations",
+    schema: z.object({
+      operation: z.enum(["add", "subtract", "multiply", "divide"]),
+      a: z.number().describe("First number"),
+      b: z.number().describe("Second number"),
+    }),
+  }
+);
+
+const agent = createAgent({
+  llm: "openai:gpt-4o",
+  tools: [weatherTool, calculatorTool],
+});
+```
+
+See the [Tools documentation](/core-concepts/tools) for more details.
+
+## Structured Output
+
+Get typed responses from agents:
+
+```typescript
+import { z } from "zod";
+
+const ResearchReport = z.object({
+  summary: z.string().describe("A brief summary"),
+  key_findings: z.array(z.string()),
+  confidence: z.number().min(0).max(1),
+});
+
+const agent = createAgent({
+  llm: "openai:gpt-4o",
+  tools: [searchTool],
+  responseFormat: ResearchReport,
+});
+
+const result = await agent.invoke({
+  messages: [{ role: "user", content: "Research quantum computing" }],
+});
+
+// Access typed response
+const report = result.structuredResponse;
+console.log(report.summary);
+console.log(report.key_findings);
+console.log(report.confidence);
+```
+
+## State Management
+
+### Custom State
+
+Extend the agent's state for memory:
+
+```typescript
+import { StateSchema } from "@langchain/langgraph";
+import { z } from "zod";
+
+const CustomState = new StateSchema({
+  userId: z.string(),
+  preferences: z.object({
+    language: z.string(),
+    tone: z.string(),
+  }).default({ language: "en", tone: "casual" }),
+});
+
+const agent = createAgent({
+  llm: "openai:gpt-4o",
+  tools: [searchTool],
+  stateSchema: CustomState,
+});
+
+const result = await agent.invoke({
+  messages: [{ role: "user", content: "Hello!" }],
+  userId: "user-123",
+  preferences: { language: "en", tone: "formal" },
+});
+```
+
+### Accessing State
+
+Tools can access the agent's state:
+
+```typescript
+const personalizedTool = tool(
+  async ({ query }, { state }) => {
+    const { userId, preferences } = state;
+    return `Searching for ${query} (user: ${userId}, lang: ${preferences.language})`;
+  },
+  {
+    name: "search",
+    description: "Search with user preferences",
+    schema: z.object({
+      query: z.string(),
+    }),
+  }
+);
+```
+
+## Middleware
+
+Middleware extends agent capabilities:
+
+```typescript
+import { createMiddleware } from "langchain";
+
+// Add human-in-the-loop approval
+const approvalMiddleware = createMiddleware({
+  beforeModel: async (state) => {
+    // Log before model call
+    console.log("Calling model with:", state.messages);
+  },
+  afterModel: async (state, response) => {
+    // Validate response
+    if (response.tool_calls?.length > 0) {
+      console.log("Tool calls requested:", response.tool_calls);
+    }
+  },
+});
+
+const agent = createAgent({
+  llm: "openai:gpt-4o",
+  tools: [searchTool],
+  middleware: [approvalMiddleware],
+});
+```
+
+### Built-in Middleware
+
+```typescript
+import {
+  modelRetryMiddleware,
+  toolCallLimitMiddleware,
+} from "langchain";
+
+const agent = createAgent({
+  llm: "openai:gpt-4o",
+  tools: [searchTool],
+  middleware: [
+    modelRetryMiddleware({ maxAttempts: 3 }),
+    toolCallLimitMiddleware({ maxToolCalls: 10 }),
+  ],
+});
+```
+
+## LangGraph Integration
+
+Agents are built on LangGraph, giving you access to powerful graph features:
+
+```typescript
+const agent = createAgent({
+  llm: "openai:gpt-4o",
+  tools: [searchTool],
+});
+
+// Access the underlying graph
+const graph = agent.graph;
+
+// Use LangGraph features
+const checkpointer = /* ... */;
+const result = await agent.invoke(
+  { messages: [...] },
+  {
+    configurable: { thread_id: "conversation-1" },
+    checkpointer,
+  }
+);
+```
+
+## Multi-Agent Systems
+
+Create specialized agents:
+
+```typescript
+const researchAgent = createAgent({
+  llm: "openai:gpt-4o",
+  tools: [searchTool, webScrapeTool],
+  prompt: "You are a research specialist.",
+});
+
+const writingAgent = createAgent({
+  llm: "openai:gpt-4o",
+  tools: [],
+  prompt: "You are a professional writer.",
+});
+
+// Coordinate agents
+async function coordinateAgents(query: string) {
+  // Research phase
+  const researchResult = await researchAgent.invoke({
+    messages: [{ role: "user", content: query }],
+  });
+  
+  // Writing phase
+  const writingResult = await writingAgent.invoke({
+    messages: [
+      { role: "user", content: `Write an article based on: ${researchResult}` },
+    ],
+  });
+  
+  return writingResult;
+}
+```
+
+## Agent Patterns
+
+### ReAct Agent
+
+The default pattern - reason and act iteratively:
+
+```typescript
+const agent = createAgent({
+  llm: "openai:gpt-4o",
+  tools: [searchTool, calculatorTool],
+});
+```
+
+### Tool-Calling Agent
+
+Agent that always uses tools:
+
+```typescript
+const agent = createAgent({
+  llm: "openai:gpt-4o",
+  tools: [tool1, tool2],
+});
+
+const result = await agent.invoke(
+  { messages: [...] },
+  { tool_choice: "any" } // Force tool usage
+);
+```
+
+### Research Agent
+
+Agent specialized for research:
+
+```typescript
+const researchAgent = createAgent({
+  llm: "openai:gpt-4o",
+  tools: [searchTool, wikipediaTool, arxivTool],
+  prompt: `You are a research assistant. For each query:
+1. Search multiple sources
+2. Cross-reference information
+3. Provide citations
+4. Summarize findings`,
+});
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Design Clear Tool Descriptions">
+    The agent uses tool descriptions to decide when to call them:
+    ```typescript
+    // ✓ Good - Clear and specific
+    const tool = tool(fn, {
+      name: "search_products",
+      description: "Search our product catalog by name or category. Returns up to 10 results with prices and availability.",
+      schema: productSchema,
+    });
+    
+    // ✗ Avoid - Vague
+    const tool = tool(fn, {
+      name: "search",
+      description: "Search for things",
+      schema: schema,
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="Provide Context in Prompts">
+    Give the agent context about its role and capabilities:
+    ```typescript
+    const agent = createAgent({
+      llm: "openai:gpt-4o",
+      tools: [weatherTool, newsTool],
+      prompt: `You are a helpful assistant with access to:
+- Weather information for any location
+- Current news articles
+
+Always provide sources for news. Weather data is real-time.`,
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="Handle Tool Errors">
+    Tools should return informative error messages:
+    ```typescript
+    const weatherTool = tool(
+      async ({ location }) => {
+        try {
+          return await getWeather(location);
+        } catch (error) {
+          return `Unable to get weather for ${location}. Please check the location name.`;
+        }
+      },
+      { /* ... */ }
+    );
+    ```
+  </Accordion>
+  
+  <Accordion title="Use Structured Output">
+    For consistent response formats, use schemas:
+    ```typescript
+    const agent = createAgent({
+      llm: "openai:gpt-4o",
+      tools: [searchTool],
+      responseFormat: ResponseSchema,
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="Limit Iterations">
+    Prevent infinite loops with middleware:
+    ```typescript
+    import { toolCallLimitMiddleware } from "langchain";
+    
+    const agent = createAgent({
+      llm: "openai:gpt-4o",
+      tools: [searchTool],
+      middleware: [
+        toolCallLimitMiddleware({ maxToolCalls: 10 }),
+      ],
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Type Signature
+
+```typescript
+function createAgent<
+  StructuredResponse = undefined,
+  StateSchema extends StateDefinitionInit = undefined,
+  Middleware extends readonly AgentMiddleware[] = [],
+  Tools extends readonly Tool[] = [],
+>(params: {
+  llm: string | BaseChatModel;
+  tools?: Tools;
+  prompt?: string | SystemMessage | ((state) => string | SystemMessage);
+  responseFormat?: ZodSchema<StructuredResponse>;
+  stateSchema?: StateSchema;
+  middleware?: Middleware;
+}): ReactAgent<{
+  Response: StructuredResponse;
+  State: StateSchema;
+  Middleware: Middleware;
+  Tools: Tools;
+}>;
+
+class ReactAgent<Types extends AgentTypeConfig> {
+  invoke(
+    input: UserInput<Types["State"]>,
+    config?: RunnableConfig
+  ): Promise<AgentState<Types>>;
+  
+  stream(
+    input: UserInput<Types["State"]>,
+    config?: RunnableConfig & { streamMode?: StreamMode }
+  ): Promise<AsyncIterableIterator<AgentState<Types>>>;
+}
+```
+
+## Common Pitfalls
+
+<Warning>
+**Infinite Loops**: Agents can get stuck if tools always suggest more tools. Use `toolCallLimitMiddleware` to prevent this.
+</Warning>
+
+<Warning>
+**Vague Tool Descriptions**: If tool descriptions aren't clear, the agent may use them incorrectly. Be specific about what each tool does and when to use it.
+</Warning>
+
+<Warning>
+**No Error Handling**: Always handle tool errors gracefully. Return helpful error messages that the agent can use to try alternative approaches.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Tools" icon="wrench" href="/core-concepts/tools">
+    Create powerful tools for agents
+  </Card>
+  <Card title="Prompts" icon="file-text" href="/core-concepts/prompts">
+    Craft effective agent prompts
+  </Card>
+  <Card title="Chat Models" icon="robot" href="/core-concepts/chat-models">
+    Choose the right model
+  </Card>
+  <Card title="Messages" icon="message" href="/core-concepts/messages">
+    Understand conversation flow
+  </Card>
+</CardGroup>

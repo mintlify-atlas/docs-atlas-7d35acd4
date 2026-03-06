@@ -1,0 +1,535 @@
+---
+title: Working with Chat Models
+description: Learn how to use chat models for text generation, function calling, and structured output in LangChain.js
+---
+
+## Introduction
+
+Chat models are language models that use messages as inputs and outputs. Unlike completion models that work with raw text, chat models understand conversational context through structured message types.
+
+LangChain.js provides a unified interface for working with chat models from different providers:
+
+- OpenAI (GPT-4, GPT-3.5)
+- Anthropic (Claude)
+- Google (Gemini, Vertex AI)
+- And many more
+
+## Quick Start
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o-mini",
+  temperature: 0.7
+});
+
+const response = await model.invoke([
+  new SystemMessage("You are a helpful assistant."),
+  new HumanMessage("What is the capital of France?")
+]);
+
+console.log(response.content);
+// "The capital of France is Paris."
+```
+
+## Message Types
+
+LangChain.js defines several message types for chat:
+
+### SystemMessage
+
+Provides instructions and context to the model:
+
+```typescript
+import { SystemMessage } from "@langchain/core/messages";
+
+const systemMsg = new SystemMessage(
+  "You are an expert Python programmer. Provide clear, well-documented code."
+);
+```
+
+### HumanMessage
+
+Represents user input:
+
+```typescript
+import { HumanMessage } from "@langchain/core/messages";
+
+const humanMsg = new HumanMessage(
+  "Write a function to calculate fibonacci numbers"
+);
+```
+
+### AIMessage
+
+Represents the model's response:
+
+```typescript
+import { AIMessage } from "@langchain/core/messages";
+
+const aiMsg = new AIMessage(
+  "Here's a fibonacci function..."
+);
+```
+
+### ToolMessage
+
+Carries results from tool/function calls:
+
+```typescript
+import { ToolMessage } from "@langchain/core/messages";
+
+const toolMsg = new ToolMessage({
+  content: "Weather data: 72°F, sunny",
+  tool_call_id: "call_123"
+});
+```
+
+## Basic Usage
+
+### Single Message
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o",
+  temperature: 0
+});
+
+const response = await model.invoke("What is 2 + 2?");
+console.log(response.content); // "2 + 2 equals 4."
+```
+
+### Conversation History
+
+```typescript
+import { HumanMessage, AIMessage } from "@langchain/core/messages";
+
+const messages = [
+  new HumanMessage("Hi, my name is Alice"),
+  new AIMessage("Hello Alice! How can I help you today?"),
+  new HumanMessage("What's my name?")
+];
+
+const response = await model.invoke(messages);
+console.log(response.content);
+// "Your name is Alice!"
+```
+
+### Streaming Responses
+
+Stream tokens as they're generated:
+
+```typescript
+const stream = await model.stream("Write a short poem about the ocean");
+
+for await (const chunk of stream) {
+  process.stdout.write(chunk.content);
+}
+```
+
+## Configuration Options
+
+### Temperature
+
+Controls randomness (0 = deterministic, 1 = creative):
+
+```typescript
+const deterministicModel = new ChatOpenAI({
+  model: "gpt-4o",
+  temperature: 0  // Consistent, factual responses
+});
+
+const creativeModel = new ChatOpenAI({
+  model: "gpt-4o",
+  temperature: 1  // More varied, creative responses
+});
+```
+
+### Max Tokens
+
+Limit response length:
+
+```typescript
+const model = new ChatOpenAI({
+  model: "gpt-4o-mini",
+  maxTokens: 100  // Maximum 100 tokens in response
+});
+```
+
+### Stop Sequences
+
+Stop generation at specific strings:
+
+```typescript
+const response = await model.invoke(
+  "List three colors:",
+  {
+    stop: ["\n4."]  // Stop after listing 3 items
+  }
+);
+```
+
+## Function Calling
+
+Chat models can call functions/tools to interact with external systems:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+
+const weatherTool = tool(
+  async ({ location }) => {
+    return `Weather in ${location}: 72°F, sunny`;
+  },
+  {
+    name: "get_weather",
+    description: "Get the current weather for a location",
+    schema: z.object({
+      location: z.string().describe("City name")
+    })
+  }
+);
+
+const model = new ChatOpenAI({
+  model: "gpt-4o",
+  temperature: 0
+});
+
+const modelWithTools = model.bindTools([weatherTool]);
+
+const response = await modelWithTools.invoke(
+  "What's the weather in San Francisco?"
+);
+
+console.log(response.tool_calls);
+// [
+//   {
+//     name: "get_weather",
+//     args: { location: "San Francisco" },
+//     id: "call_abc123"
+//   }
+// ]
+```
+
+### Forcing Tool Usage
+
+Require the model to use specific tools:
+
+```typescript
+const response = await modelWithTools.invoke(
+  "What's the weather?",
+  {
+    tool_choice: "get_weather"  // Must use this tool
+  }
+);
+```
+
+### Tool Choice Options
+
+```typescript
+// Let model decide (default)
+const autoResponse = await modelWithTools.invoke(input, {
+  tool_choice: "auto"
+});
+
+// Must use at least one tool
+const anyResponse = await modelWithTools.invoke(input, {
+  tool_choice: "any"
+});
+
+// Don't use any tools
+const noneResponse = await modelWithTools.invoke(input, {
+  tool_choice: "none"
+});
+
+// Use a specific tool
+const specificResponse = await modelWithTools.invoke(input, {
+  tool_choice: "get_weather"
+});
+```
+
+## Structured Output
+
+Get responses in a specific format using schemas:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { z } from "zod";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o",
+  temperature: 0
+});
+
+// Define output schema
+const PersonSchema = z.object({
+  name: z.string().describe("Person's name"),
+  age: z.number().describe("Person's age"),
+  email: z.string().email().describe("Email address")
+});
+
+const structuredModel = model.withStructuredOutput(PersonSchema);
+
+const result = await structuredModel.invoke(
+  "Extract info: John Smith is 35 years old. Contact: john@example.com"
+);
+
+console.log(result);
+// {
+//   name: "John Smith",
+//   age: 35,
+//   email: "john@example.com"
+// }
+```
+
+### Complex Schemas
+
+```typescript
+const ArticleSchema = z.object({
+  title: z.string(),
+  summary: z.string(),
+  keyPoints: z.array(z.string()),
+  sentiment: z.enum(["positive", "negative", "neutral"]),
+  entities: z.array(
+    z.object({
+      name: z.string(),
+      type: z.enum(["person", "organization", "location"])
+    })
+  )
+});
+
+const structuredModel = model.withStructuredOutput(ArticleSchema);
+
+const article = await structuredModel.invoke(
+  "Analyze this article: [article text]"
+);
+```
+
+## Batch Processing
+
+Process multiple inputs efficiently:
+
+```typescript
+const inputs = [
+  "What is 2+2?",
+  "What is 3+3?",
+  "What is 4+4?"
+];
+
+const responses = await model.batch(inputs);
+
+for (const response of responses) {
+  console.log(response.content);
+}
+// "2+2 equals 4."
+// "3+3 equals 6."
+// "4+4 equals 8."
+```
+
+### Batch with Different Configurations
+
+```typescript
+const inputs = [
+  { input: "Be creative", config: { temperature: 1 } },
+  { input: "Be precise", config: { temperature: 0 } }
+];
+
+const responses = await model.batch(
+  inputs.map(i => i.input),
+  inputs.map(i => i.config)
+);
+```
+
+## Caching
+
+Cache responses to reduce API calls and costs:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { InMemoryCache } from "@langchain/core/caches";
+
+const cache = new InMemoryCache();
+
+const model = new ChatOpenAI({
+  model: "gpt-4o",
+  cache: cache
+});
+
+// First call - hits API
+const response1 = await model.invoke("What is the capital of France?");
+
+// Second call - returns cached result
+const response2 = await model.invoke("What is the capital of France?");
+```
+
+## Multi-Modal Inputs
+
+Some models support images and other media:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { HumanMessage } from "@langchain/core/messages";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o"
+});
+
+const response = await model.invoke([
+  new HumanMessage({
+    content: [
+      {
+        type: "text",
+        text: "What's in this image?"
+      },
+      {
+        type: "image_url",
+        image_url: {
+          url: "https://example.com/image.jpg"
+        }
+      }
+    ]
+  })
+]);
+```
+
+## Error Handling
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o",
+  maxRetries: 3,  // Retry on failure
+  timeout: 30000  // 30 second timeout
+});
+
+try {
+  const response = await model.invoke("Your query");
+  console.log(response.content);
+} catch (error) {
+  if (error.status === 429) {
+    console.error("Rate limit exceeded");
+  } else if (error.status === 401) {
+    console.error("Invalid API key");
+  } else {
+    console.error("Error:", error.message);
+  }
+}
+```
+
+## Provider-Specific Features
+
+### OpenAI
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o",
+  temperature: 0.7,
+  maxTokens: 1000,
+  topP: 1,
+  frequencyPenalty: 0,
+  presencePenalty: 0,
+  n: 1  // Number of completions to generate
+});
+```
+
+### Anthropic
+
+```typescript
+import { ChatAnthropic } from "@langchain/anthropic";
+
+const model = new ChatAnthropic({
+  model: "claude-3-5-sonnet-20241022",
+  temperature: 0.7,
+  maxTokens: 1024
+});
+```
+
+### Google
+
+```typescript
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+
+const model = new ChatGoogleGenerativeAI({
+  model: "gemini-pro",
+  temperature: 0.7
+});
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use System Messages">
+    System messages set the behavior and context:
+
+    ```typescript
+    const messages = [
+      new SystemMessage(`You are a helpful coding assistant.
+        - Write clean, well-documented code
+        - Follow best practices
+        - Explain your reasoning`),
+      new HumanMessage("Write a sorting function")
+    ];
+    ```
+  </Accordion>
+
+  <Accordion title="Set Appropriate Temperature">
+    Match temperature to your use case:
+    - **0-0.3**: Factual tasks, classification, data extraction
+    - **0.4-0.7**: Balanced responses, general conversation
+    - **0.8-1.0**: Creative writing, brainstorming
+
+    ```typescript
+    const factualModel = new ChatOpenAI({ temperature: 0 });
+    const creativeModel = new ChatOpenAI({ temperature: 0.9 });
+    ```
+  </Accordion>
+
+  <Accordion title="Handle Streaming for Long Responses">
+    Use streaming for better UX with long outputs:
+
+    ```typescript
+    const stream = await model.stream(longPrompt);
+    
+    for await (const chunk of stream) {
+      // Update UI as tokens arrive
+      updateUI(chunk.content);
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Implement Retry Logic">
+    Handle transient failures gracefully:
+
+    ```typescript
+    const model = new ChatOpenAI({
+      maxRetries: 3,
+      timeout: 60000
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Prompt Engineering" icon="wand-magic-sparkles" href="/guides/prompt-engineering">
+    Learn techniques for better prompts
+  </Card>
+  <Card title="Streaming" icon="wave-pulse" href="/guides/streaming">
+    Implement streaming responses
+  </Card>
+  <Card title="Building Agents" icon="robot" href="/guides/building-agents">
+    Create agents with chat models
+  </Card>
+  <Card title="Creating Tools" icon="wrench" href="/guides/creating-tools">
+    Add tools for function calling
+  </Card>
+</CardGroup>

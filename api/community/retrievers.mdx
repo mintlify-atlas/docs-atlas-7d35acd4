@@ -1,0 +1,557 @@
+---
+title: Retrievers
+description: Retrieve relevant documents using community retriever integrations
+---
+
+Retrievers are components that retrieve relevant documents given a query. Unlike vector stores which store and search embeddings, retrievers implement various search strategies including hybrid search, reranking, and API-based retrieval.
+
+## Installation
+
+```bash
+npm install @langchain/community
+```
+
+Each retriever may require additional dependencies based on the service it integrates with.
+
+## What is a Retriever?
+
+A retriever is an interface that returns documents given an unstructured query. It doesn't store documents - it only retrieves them. Retrievers can:
+
+- Wrap vector stores
+- Implement custom search logic
+- Call external APIs
+- Combine multiple sources
+- Rerank results
+
+## Using Vector Stores as Retrievers
+
+The simplest way to create a retriever is from a vector store:
+
+```typescript
+import { Chroma } from "@langchain/community/vectorstores/chroma";
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+const vectorStore = new Chroma(new OpenAIEmbeddings(), {
+  collectionName: "documents"
+});
+
+const retriever = vectorStore.asRetriever({
+  k: 4,
+  searchType: "similarity", // or "mmr" for diversity
+});
+
+const docs = await retriever.invoke("What is LangChain?");
+```
+
+## Search API Retrievers
+
+Retrievers that use external search APIs.
+
+### Tavily Search API Retriever
+
+Retrieve web search results using Tavily's search API.
+
+```typescript
+import { TavilySearchAPIRetriever } from "@langchain/community/retrievers/tavily_search_api";
+
+const retriever = new TavilySearchAPIRetriever({
+  apiKey: process.env.TAVILY_API_KEY,
+  k: 5,
+  includeRawContent: false,
+  includeImages: false,
+  searchDepth: "advanced", // "basic" or "advanced"
+  includeDomains: ["example.com"], // Optional
+  excludeDomains: ["spam.com"], // Optional
+});
+
+const docs = await retriever.invoke("latest AI news");
+```
+
+**Module**: `@langchain/community/retrievers/tavily_search_api`
+
+**Features**:
+- Web search with AI-powered relevance
+- Basic or advanced search depth
+- Domain filtering
+- Raw content and image retrieval
+- Generated answer inclusion
+
+### Arxiv Retriever
+
+Retrieve research papers from Arxiv.
+
+```typescript
+import { ArxivRetriever } from "@langchain/community/retrievers/arxiv";
+
+const retriever = new ArxivRetriever({
+  maxResults: 5,
+});
+
+const docs = await retriever.invoke("quantum computing");
+```
+
+**Module**: `@langchain/community/retrievers/arxiv`
+
+## Hybrid Search Retrievers
+
+Retrievers that combine multiple search strategies.
+
+### BM25 Retriever
+
+Keyword-based retrieval using the BM25 algorithm.
+
+```typescript
+import { BM25Retriever } from "@langchain/community/retrievers/bm25";
+import { Document } from "@langchain/core/documents";
+
+const docs = [
+  new Document({
+    pageContent: "LangChain is a framework for building LLM applications.",
+    metadata: { source: "docs" },
+  }),
+  new Document({
+    pageContent: "Vector stores enable semantic search over documents.",
+    metadata: { source: "docs" },
+  }),
+];
+
+const retriever = BM25Retriever.fromDocuments(docs, {
+  k: 2,
+});
+
+const results = await retriever.invoke("LLM framework");
+```
+
+**Module**: `@langchain/community/retrievers/bm25`
+
+**Use Cases**:
+- Keyword search
+- Exact term matching
+- Combine with vector search for hybrid retrieval
+
+### Vespa Retriever
+
+Retrieve from Vespa, which supports hybrid search.
+
+**Module**: `@langchain/community/retrievers/vespa`
+
+**Features**:
+- Hybrid semantic and keyword search
+- Scalable distributed search
+- Rich querying capabilities
+
+## Specialized Retrievers
+
+Retrievers for specific use cases or platforms.
+
+### Chaindesk Retriever
+
+Retrieve from Chaindesk knowledge bases.
+
+```typescript
+import { ChaindeskRetriever } from "@langchain/community/retrievers/chaindesk";
+
+const retriever = new ChaindeskRetriever({
+  datastoreId: "your-datastore-id",
+  apiKey: process.env.CHAINDESK_API_KEY,
+  topK: 5,
+});
+
+const docs = await retriever.invoke("product documentation");
+```
+
+**Module**: `@langchain/community/retrievers/chaindesk`
+
+### Metal Retriever
+
+Retrieve from Metal's managed vector database.
+
+```typescript
+import { MetalRetriever } from "@langchain/community/retrievers/metal";
+
+const retriever = new MetalRetriever({
+  apiKey: process.env.METAL_API_KEY,
+  clientId: process.env.METAL_CLIENT_ID,
+  indexId: process.env.METAL_INDEX_ID,
+});
+
+const docs = await retriever.invoke("search query");
+```
+
+**Module**: `@langchain/community/retrievers/metal`  
+**Requires**: `@getmetal/metal-sdk`
+
+### Supabase Hybrid Search Retriever
+
+Combine full-text and vector search in Supabase.
+
+```typescript
+import { SupabaseHybridSearch } from "@langchain/community/retrievers/supabase";
+import { OpenAIEmbeddings } from "@langchain/openai";
+import { createClient } from "@supabase/supabase-js";
+
+const client = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_PRIVATE_KEY
+);
+
+const retriever = new SupabaseHybridSearch(new OpenAIEmbeddings(), {
+  client,
+  similarityK: 2,
+  keywordK: 2,
+  tableName: "documents",
+  similarityQueryName: "match_documents",
+  keywordQueryName: "kw_match_documents",
+});
+
+const docs = await retriever.invoke("hybrid query");
+```
+
+**Module**: `@langchain/community/retrievers/supabase`  
+**Requires**: `@supabase/supabase-js`
+
+**Features**:
+- Combines semantic (vector) and keyword (full-text) search
+- Configurable result counts for each method
+- Built on PostgreSQL with pgvector and pg_trgm
+
+### Vectara Summary Retriever
+
+Retrieve and summarize results from Vectara.
+
+**Module**: `@langchain/community/retrievers/vectara_summary`
+
+**Features**:
+- Retrieval with automatic summarization
+- Configurable summary length
+- Citation tracking
+
+### Zep Retriever
+
+Retrieve from Zep memory store for conversational AI.
+
+```typescript
+import { ZepRetriever } from "@langchain/community/retrievers/zep";
+
+const retriever = new ZepRetriever({
+  url: process.env.ZEP_URL,
+  sessionId: "user-session-123",
+  topK: 3,
+});
+
+const docs = await retriever.invoke("user preferences");
+```
+
+**Modules**:
+- `@langchain/community/retrievers/zep` - Self-hosted Zep
+- `@langchain/community/retrievers/zep_cloud` - Zep Cloud
+
+**Requires**: `@getzep/zep-js` or `@getzep/zep-cloud`
+
+**Use Cases**:
+- Conversational memory retrieval
+- User context for chatbots
+- Session-based information
+
+### Azion EdgeSQL Retriever
+
+Retrieve from Azion's edge SQL database.
+
+**Module**: `@langchain/community/retrievers/azion_edgesql`  
+**Requires**: `azion`
+
+**Features**:
+- Edge computing for low latency
+- SQL-based retrieval with vector support
+- Global distribution
+
+## Remote Retrievers
+
+Retrievers that connect to remote services.
+
+### Remote LangChain Retriever
+
+Connect to a remote LangChain server.
+
+**Module**: `@langchain/community/retrievers/remote/base`
+
+**Use Cases**:
+- Centralized retrieval service
+- Shared knowledge base
+- Microservices architecture
+
+## Custom Retrievers
+
+You can create custom retrievers by extending `BaseRetriever`:
+
+```typescript
+import { BaseRetriever } from "@langchain/core/retrievers";
+import { Document } from "@langchain/core/documents";
+import { CallbackManagerForRetrieverRun } from "@langchain/core/callbacks/manager";
+
+class CustomRetriever extends BaseRetriever {
+  lc_namespace = ["langchain", "retrievers", "custom"];
+
+  async _getRelevantDocuments(
+    query: string,
+    runManager?: CallbackManagerForRetrieverRun
+  ): Promise<Document[]> {
+    // Implement your retrieval logic
+    const results = await this.search(query);
+    
+    return results.map(
+      (result) =>
+        new Document({
+          pageContent: result.content,
+          metadata: result.metadata,
+        })
+    );
+  }
+
+  async search(query: string) {
+    // Your custom search implementation
+    return [];
+  }
+}
+```
+
+## Combining Retrievers
+
+Use ensemble retrievers to combine multiple retrieval strategies:
+
+```typescript
+import { EnsembleRetriever } from "langchain/retrievers/ensemble";
+import { BM25Retriever } from "@langchain/community/retrievers/bm25";
+
+const vectorRetriever = vectorStore.asRetriever({ k: 3 });
+const bm25Retriever = BM25Retriever.fromDocuments(docs, { k: 3 });
+
+const ensembleRetriever = new EnsembleRetriever({
+  retrievers: [vectorRetriever, bm25Retriever],
+  weights: [0.5, 0.5], // Equal weighting
+});
+
+const results = await ensembleRetriever.invoke("query");
+```
+
+## Retriever Chains
+
+Retrievers work seamlessly with LangChain's LCEL:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+
+const prompt = ChatPromptTemplate.fromTemplate(
+  `Answer based on context:
+  
+  Context: {context}
+  
+  Question: {question}`
+);
+
+const model = new ChatOpenAI();
+const retriever = vectorStore.asRetriever();
+
+const chain = prompt
+  .pipe(model)
+  .pipe(new StringOutputParser());
+
+const result = await chain.invoke({
+  context: await retriever.invoke("query"),
+  question: "query",
+});
+```
+
+## Retrieval QA
+
+Use retrievers for question-answering:
+
+```typescript
+import { RetrievalQAChain } from "langchain/chains";
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI();
+const retriever = vectorStore.asRetriever();
+
+const chain = RetrievalQAChain.fromLLM(model, retriever);
+
+const result = await chain.invoke({
+  query: "What is LangChain?",
+});
+
+console.log(result.text);
+```
+
+## Contextual Compression
+
+Compress retrieved documents for better relevance:
+
+```typescript
+import { ContextualCompressionRetriever } from "langchain/retrievers/contextual_compression";
+import { LLMChainExtractor } from "langchain/retrievers/document_compressors/chain_extract";
+import { ChatOpenAI } from "@langchain/openai";
+
+const baseRetriever = vectorStore.asRetriever();
+const llm = new ChatOpenAI();
+const compressor = LLMChainExtractor.fromLLM(llm);
+
+const retriever = new ContextualCompressionRetriever({
+  baseRetriever,
+  baseCompressor: compressor,
+});
+
+const docs = await retriever.invoke("complex query");
+// Returns compressed, more relevant documents
+```
+
+## Multi-Query Retrieval
+
+Generate multiple queries for better coverage:
+
+```typescript
+import { MultiQueryRetriever } from "langchain/retrievers/multi_query";
+import { ChatOpenAI } from "@langchain/openai";
+
+const llm = new ChatOpenAI();
+const baseRetriever = vectorStore.asRetriever();
+
+const retriever = MultiQueryRetriever.fromLLM({
+  llm,
+  retriever: baseRetriever,
+  queryCount: 3, // Generate 3 variations
+});
+
+const docs = await retriever.invoke("ambiguous query");
+// Retrieves results for multiple query interpretations
+```
+
+## Time-Weighted Retrieval
+
+Retrieve with recency bias:
+
+```typescript
+import { TimeWeightedVectorStoreRetriever } from "langchain/retrievers/time_weighted";
+
+const retriever = new TimeWeightedVectorStoreRetriever({
+  vectorStore,
+  memoryStream: [],
+  searchKwargs: { k: 4 },
+  decayRate: 0.01, // How quickly to decay relevance
+});
+
+await retriever.addDocuments(docs);
+const results = await retriever.invoke("query");
+// Recent documents are weighted higher
+```
+
+## Best Practices
+
+1. **Choose the right retriever** - Match retriever to your use case:
+   - Vector search: Semantic similarity
+   - BM25: Keyword/exact matching
+   - Hybrid: Best of both worlds
+   - API-based: Real-time external data
+
+2. **Optimize k value** - Balance between relevance and context length:
+   - Start with k=4
+   - Increase for broader context
+   - Decrease for focused results
+
+3. **Use filters** - Narrow scope with metadata filters:
+   ```typescript
+   const retriever = vectorStore.asRetriever({
+     filter: { source: "docs", year: 2024 },
+   });
+   ```
+
+4. **Implement reranking** - Use compression or custom scoring
+
+5. **Monitor performance** - Track retrieval quality:
+   - Relevance scores
+   - Response time
+   - User feedback
+
+6. **Handle failures gracefully** - Retrievers may fail or return no results:
+   ```typescript
+   const docs = await retriever.invoke(query);
+   if (docs.length === 0) {
+     // Fallback logic
+   }
+   ```
+
+7. **Cache when appropriate** - Cache frequent queries
+
+## Advanced Patterns
+
+### Parent Document Retrieval
+
+```typescript
+import { ParentDocumentRetriever } from "langchain/retrievers/parent_document";
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { InMemoryStore } from "@langchain/core/stores";
+
+const parentSplitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 2000,
+});
+
+const childSplitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 400,
+});
+
+const retriever = new ParentDocumentRetriever({
+  vectorstore: vectorStore,
+  docstore: new InMemoryStore(),
+  parentSplitter,
+  childSplitter,
+});
+
+await retriever.addDocuments(docs);
+// Retrieves small chunks but returns full parent documents
+```
+
+### Self-Query Retrieval
+
+```typescript
+import { SelfQueryRetriever } from "langchain/retrievers/self_query";
+import { ChatOpenAI } from "@langchain/openai";
+
+const llm = new ChatOpenAI();
+
+const retriever = SelfQueryRetriever.fromLLM({
+  llm,
+  vectorStore,
+  documentContents: "Technical documentation",
+  attributeInfo: [
+    {
+      name: "source",
+      description: "The source of the document",
+      type: "string",
+    },
+    {
+      name: "year",
+      description: "The year the document was written",
+      type: "number",
+    },
+  ],
+});
+
+// Automatically extracts filters from natural language
+const docs = await retriever.invoke("recent docs about Python");
+```
+
+## Performance Considerations
+
+- **Latency**: API-based retrievers add network overhead
+- **Cost**: External APIs charge per request
+- **Rate limits**: Implement backoff and retries
+- **Batch operations**: Some retrievers support batching
+- **Caching**: Cache frequent queries locally
+
+## Next Steps
+
+- [Vector Stores](/api/community/vector-stores) - Store documents for retrieval
+- [Document Loaders](/api/community/document-loaders) - Load documents into your system
+- [RAG Tutorial](/tutorials/rag) - Build retrieval-augmented generation apps
+- [Chains](/concepts/chains) - Combine retrievers with LLMs

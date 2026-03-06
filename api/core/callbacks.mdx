@@ -1,0 +1,340 @@
+---
+title: "Callbacks"
+description: "Callback system for monitoring and debugging LLM applications"
+---
+
+## Overview
+
+Callbacks provide hooks into the LangChain execution lifecycle, enabling logging, monitoring, streaming, and debugging.
+
+## Callback Events
+
+LangChain emits callbacks for different component types:
+
+- **LLM/Chat Model**: Start, new token, end, error
+- **Chain**: Start, end, error
+- **Tool**: Start, end, error
+- **Retriever**: Start, end, error
+- **Agent**: Start, action, end, error
+
+## BaseCallbackHandler
+
+Extend this class to create custom callback handlers.
+
+**Import:**
+```typescript
+import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
+```
+
+**Example:**
+```typescript
+class CustomHandler extends BaseCallbackHandler {
+  name = "custom_handler";
+
+  async handleLLMStart(llm: { name: string }, prompts: string[]) {
+    console.log("LLM started:", llm.name);
+  }
+
+  async handleLLMNewToken(token: string) {
+    console.log("New token:", token);
+  }
+
+  async handleLLMEnd(output: LLMResult) {
+    console.log("LLM finished");
+  }
+
+  async handleLLMError(error: Error) {
+    console.error("LLM error:", error);
+  }
+
+  async handleChainStart(chain: { name: string }, inputs: any) {
+    console.log("Chain started:", chain.name);
+  }
+
+  async handleChainEnd(outputs: any) {
+    console.log("Chain ended with outputs:", outputs);
+  }
+
+  async handleToolStart(tool: { name: string }, input: string) {
+    console.log("Tool started:", tool.name);
+  }
+
+  async handleToolEnd(output: string) {
+    console.log("Tool output:", output);
+  }
+}
+```
+
+## Using Callbacks
+
+### At Invocation Time
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI();
+const handler = new CustomHandler();
+
+const response = await model.invoke(
+  [["human", "Tell me a joke"]],
+  { callbacks: [handler] }
+);
+```
+
+### At Construction Time
+
+```typescript
+const model = new ChatOpenAI({
+  callbacks: [handler]
+});
+
+// Handler will be used for all invocations
+const response1 = await model.invoke([["human", "Hello"]]);
+const response2 = await model.invoke([["human", "Goodbye"]]);
+```
+
+### With Chains
+
+```typescript
+const chain = prompt.pipe(model).pipe(parser);
+
+const result = await chain.invoke(
+  { input: "Hello" },
+  { callbacks: [handler] }
+);
+```
+
+## Built-in Handlers
+
+### ConsoleCallbackHandler
+
+Log events to the console:
+
+```typescript
+import { ConsoleCallbackHandler } from "@langchain/core/callbacks/console";
+
+const handler = new ConsoleCallbackHandler();
+
+const response = await model.invoke(
+  [["human", "Hello"]],
+  { callbacks: [handler] }
+);
+```
+
+### LangSmith Tracing
+
+Enable automatic tracing to LangSmith:
+
+```typescript
+import { LangChainTracer } from "@langchain/core/tracers/tracer_langchain";
+
+const tracer = new LangChainTracer({
+  projectName: "my-project"
+});
+
+const response = await model.invoke(
+  [["human", "Hello"]],
+  { callbacks: [tracer] }
+);
+```
+
+Or use environment variables:
+```bash
+export LANGCHAIN_TRACING_V2=true
+export LANGCHAIN_API_KEY=your-api-key
+export LANGCHAIN_PROJECT=my-project
+```
+
+## Callback Context
+
+Callbacks receive context about the execution:
+
+```typescript
+class ContextAwareHandler extends BaseCallbackHandler {
+  name = "context_handler";
+
+  async handleLLMStart(
+    llm: { name: string },
+    prompts: string[],
+    runId: string,
+    parentRunId?: string,
+    extraParams?: Record<string, unknown>,
+    tags?: string[],
+    metadata?: Record<string, unknown>
+  ) {
+    console.log("Run ID:", runId);
+    console.log("Tags:", tags);
+    console.log("Metadata:", metadata);
+  }
+}
+```
+
+## Streaming Callbacks
+
+Handle streaming tokens:
+
+```typescript
+class StreamingHandler extends BaseCallbackHandler {
+  name = "streaming_handler";
+
+  async handleLLMNewToken(token: string) {
+    process.stdout.write(token);
+  }
+}
+
+const handler = new StreamingHandler();
+const stream = await model.stream(
+  [["human", "Write a poem"]],
+  { callbacks: [handler] }
+);
+
+for await (const chunk of stream) {
+  // Tokens also logged via callback
+}
+```
+
+## Callback Manager
+
+Manage multiple callbacks:
+
+```typescript
+import { CallbackManager } from "@langchain/core/callbacks/manager";
+
+const manager = CallbackManager.fromHandlers({
+  handleLLMStart: async (llm, prompts) => {
+    console.log("LLM started");
+  },
+  handleLLMEnd: async (output) => {
+    console.log("LLM ended");
+  }
+});
+
+const response = await model.invoke(
+  [["human", "Hello"]],
+  { callbacks: manager }
+);
+```
+
+## Performance Monitoring
+
+```typescript
+class PerformanceHandler extends BaseCallbackHandler {
+  name = "performance_handler";
+  private startTimes = new Map<string, number>();
+
+  async handleChainStart(chain: { name: string }, inputs: any, runId: string) {
+    this.startTimes.set(runId, Date.now());
+  }
+
+  async handleChainEnd(outputs: any, runId: string) {
+    const startTime = this.startTimes.get(runId);
+    if (startTime) {
+      const duration = Date.now() - startTime;
+      console.log(`Chain completed in ${duration}ms`);
+      this.startTimes.delete(runId);
+    }
+  }
+
+  async handleLLMEnd(output: LLMResult, runId: string) {
+    const tokens = output.llmOutput?.tokenUsage;
+    if (tokens) {
+      console.log("Token usage:", tokens);
+    }
+  }
+}
+```
+
+## Error Handling
+
+```typescript
+class ErrorHandler extends BaseCallbackHandler {
+  name = "error_handler";
+
+  async handleLLMError(error: Error, runId: string) {
+    console.error("LLM error:", error.message);
+    // Log to monitoring service
+  }
+
+  async handleChainError(error: Error, runId: string) {
+    console.error("Chain error:", error.message);
+    // Alert on critical errors
+  }
+
+  async handleToolError(error: Error, runId: string) {
+    console.error("Tool error:", error.message);
+    // Retry or fallback logic
+  }
+}
+```
+
+## Callback Methods
+
+<ParamField path="handleLLMStart" type="method">
+  Called when LLM/chat model starts
+</ParamField>
+
+<ParamField path="handleLLMNewToken" type="method">
+  Called for each streaming token
+</ParamField>
+
+<ParamField path="handleLLMEnd" type="method">
+  Called when LLM completes
+</ParamField>
+
+<ParamField path="handleLLMError" type="method">
+  Called on LLM errors
+</ParamField>
+
+<ParamField path="handleChainStart" type="method">
+  Called when chain starts
+</ParamField>
+
+<ParamField path="handleChainEnd" type="method">
+  Called when chain completes
+</ParamField>
+
+<ParamField path="handleToolStart" type="method">
+  Called when tool starts
+</ParamField>
+
+<ParamField path="handleToolEnd" type="method">
+  Called when tool completes
+</ParamField>
+
+<ParamField path="handleRetrieverStart" type="method">
+  Called when retriever starts
+</ParamField>
+
+<ParamField path="handleRetrieverEnd" type="method">
+  Called when retriever completes
+</ParamField>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use LangSmith for production monitoring">
+    Enable LangSmith tracing for comprehensive observability:
+    ```bash
+    export LANGCHAIN_TRACING_V2=true
+    ```
+  </Accordion>
+  
+  <Accordion title="Keep handlers lightweight">
+    Avoid heavy processing in callback methods to minimize performance impact.
+  </Accordion>
+  
+  <Accordion title="Handle errors gracefully">
+    Don't throw errors from callback methods as they can interrupt execution.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Callbacks Guide" href="/guides/callbacks-and-tracing">
+    Complete guide to callbacks
+  </Card>
+  <Card title="LangSmith" href="https://smith.langchain.com">
+    Production monitoring platform
+  </Card>
+</CardGroup>

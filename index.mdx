@@ -1,97 +1,188 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "LangChain.js Documentation"
+description: "Build powerful LLM applications with the agent engineering platform"
 ---
 
-## Setting up
+<div style={{
+  background: 'linear-gradient(135deg, #060814 0%, #3c5c7c 100%)',
+  padding: '60px 40px',
+  borderRadius: '12px',
+  marginBottom: '40px',
+  color: 'white'
+}}>
+  <h1 style={{
+    fontSize: '48px',
+    fontWeight: '700',
+    marginBottom: '20px',
+    color: 'white'
+  }}>
+    The Agent Engineering Platform
+  </h1>
+  <p style={{
+    fontSize: '20px',
+    marginBottom: '30px',
+    opacity: '0.9',
+    maxWidth: '800px'
+  }}>
+    LangChain.js is a TypeScript framework for building LLM-powered applications. Chain together interoperable components, integrate with 20+ providers, and build agents that can handle complex tasks.
+  </p>
+  <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+    <a href="/quickstart" style={{
+      background: '#7ccafa',
+      color: '#060814',
+      padding: '12px 24px',
+      borderRadius: '6px',
+      fontWeight: '600',
+      textDecoration: 'none',
+      display: 'inline-block'
+    }}>
+      Get Started
+    </a>
+    <a href="https://github.com/langchain-ai/langchainjs" style={{
+      background: 'transparent',
+      color: 'white',
+      padding: '12px 24px',
+      borderRadius: '6px',
+      border: '2px solid white',
+      fontWeight: '600',
+      textDecoration: 'none',
+      display: 'inline-block'
+    }}>
+      View on GitHub
+    </a>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+## Quick Start
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+Get up and running with LangChain.js in minutes.
 
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
+<CardGroup cols={2}>
   <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
+    title="Installation"
+    icon="download"
+    href="/installation"
   >
-    Edit your docs locally and preview them in real time.
+    Install LangChain.js with npm, pnpm, or yarn
   </Card>
   <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
+    title="Quickstart Guide"
+    icon="rocket"
+    href="/quickstart"
   >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+    Build your first LLM application in 5 minutes
   </Card>
   <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
+    title="Core Concepts"
+    icon="book"
+    href="/core-concepts/architecture"
   >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
-
-## Create beautiful pages
-
-Everything you need to create world-class documentation.
-
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+    Learn about runnables, agents, and the framework architecture
   </Card>
   <Card
-    title="Code samples"
+    title="API Reference"
     icon="code"
-    href="/essentials/code"
+    href="/api/core/runnables"
   >
-    Add sample code to demonstrate how to use your product.
+    Explore the complete API documentation
+  </Card>
+</CardGroup>
+
+## Key Features
+
+Everything you need to build production-ready LLM applications.
+
+<CardGroup cols={3}>
+  <Card
+    title="Agent Engineering"
+    icon="robot"
+  >
+    Build agents with LangGraph integration for complex task orchestration
   </Card>
   <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
+    title="Composable Runnables"
+    icon="link"
   >
-    Display images and other media.
+    Chain components together with the powerful Runnable interface
   </Card>
   <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
+    title="20+ Integrations"
+    icon="plug"
   >
-    Write once and reuse across your docs.
+    Connect to OpenAI, Anthropic, Google, and many more providers
   </Card>
-</Columns>
+  <Card
+    title="Structured Tools"
+    icon="wrench"
+  >
+    Create tools with function calling and schema validation
+  </Card>
+  <Card
+    title="Memory & History"
+    icon="brain"
+  >
+    Manage conversation state and long-term memory
+  </Card>
+  <Card
+    title="Streaming Support"
+    icon="wave-pulse"
+  >
+    Real-time streaming responses for better UX
+  </Card>
+</CardGroup>
 
-## Need inspiration?
+## Popular Guides
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+Learn how to build with LangChain.js.
+
+<CardGroup cols={2}>
+  <Card
+    title="Building Agents"
+    icon="diagram-project"
+    href="/guides/building-agents"
+  >
+    Create agents that can handle complex, multi-step tasks
+  </Card>
+  <Card
+    title="Working with Chat Models"
+    icon="comments"
+    href="/guides/working-with-chat-models"
+  >
+    Learn to use chat models from any provider
+  </Card>
+  <Card
+    title="Prompt Engineering"
+    icon="wand-magic-sparkles"
+    href="/guides/prompt-engineering"
+  >
+    Master prompt templates and prompt optimization
+  </Card>
+  <Card
+    title="Retrieval (RAG)"
+    icon="database"
+    href="/guides/retrieval"
+  >
+    Build retrieval-augmented generation applications
+  </Card>
+</CardGroup>
+
+## Ecosystem
+
+LangChain.js is part of a larger ecosystem.
+
+<CardGroup cols={2}>
+  <Card
+    title="LangGraph"
+    icon="diagram-project"
+    href="https://docs.langchain.com/oss/javascript/langgraph/overview"
+  >
+    Build agents with customizable architecture and human-in-the-loop workflows
+  </Card>
+  <Card
+    title="LangSmith"
+    icon="chart-line"
+    href="https://smith.langchain.com"
+  >
+    Debug, test, and monitor your LLM applications in production
+  </Card>
+</CardGroup>

@@ -1,0 +1,474 @@
+---
+title: Document Loaders
+description: Load documents from various sources using community integrations
+---
+
+Document loaders are used to load data from various sources as `Document` objects. Each document contains `pageContent` (the text) and `metadata` (information about the document).
+
+## Installation
+
+```bash
+npm install @langchain/community
+```
+
+Most loaders require additional peer dependencies. Install them as needed:
+
+```bash
+# For PDF loading
+npm install pdf-parse
+
+# For DOCX loading
+npm install mammoth
+
+# For web scraping
+npm install cheerio
+
+# For Puppeteer
+npm install puppeteer
+```
+
+## File System Loaders
+
+Load documents from local files or file systems.
+
+### CSV Loader
+
+Load CSV files with each row as a document.
+
+```typescript
+import { CSVLoader } from "@langchain/community/document_loaders/fs/csv";
+
+const loader = new CSVLoader("path/to/file.csv");
+const docs = await loader.load();
+
+// Load specific column
+const loader2 = new CSVLoader("path/to/file.csv", "content");
+const docs2 = await loader2.load();
+```
+
+**Module**: `@langchain/community/document_loaders/fs/csv`
+
+### PDF Loader
+
+Load PDF files and extract text content.
+
+```typescript
+import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
+
+const loader = new PDFLoader("path/to/file.pdf");
+const docs = await loader.load();
+```
+
+**Module**: `@langchain/community/document_loaders/fs/pdf`  
+**Requires**: `pdf-parse`
+
+### DOCX Loader
+
+Load Microsoft Word documents.
+
+```typescript
+import { DocxLoader } from "@langchain/community/document_loaders/fs/docx";
+
+const loader = new DocxLoader("path/to/file.docx");
+const docs = await loader.load();
+```
+
+**Module**: `@langchain/community/document_loaders/fs/docx`  
+**Requires**: `mammoth`
+
+### EPUB Loader
+
+Load EPUB ebook files.
+
+**Module**: `@langchain/community/document_loaders/fs/epub`  
+**Requires**: `epub2`
+
+### PPTX Loader
+
+Load PowerPoint presentations.
+
+**Module**: `@langchain/community/document_loaders/fs/pptx`  
+**Requires**: `officeparser`
+
+### SRT Loader
+
+Load subtitle files (SRT format).
+
+**Module**: `@langchain/community/document_loaders/fs/srt`  
+**Requires**: `srt-parser-2`
+
+### Notion Loader
+
+Load exported Notion pages from the file system.
+
+**Module**: `@langchain/community/document_loaders/fs/notion`
+
+### Obsidian Loader
+
+Load Obsidian markdown vaults.
+
+**Module**: `@langchain/community/document_loaders/fs/obsidian`
+
+### ChatGPT Loader
+
+Load ChatGPT conversation exports.
+
+**Module**: `@langchain/community/document_loaders/fs/chatgpt`
+
+### OpenAI Whisper Audio Loader
+
+Transcribe audio files using OpenAI's Whisper API.
+
+**Module**: `@langchain/community/document_loaders/fs/openai_whisper_audio`  
+**Requires**: OpenAI API key
+
+### Unstructured Loader
+
+Load various file types using the Unstructured API.
+
+**Module**: `@langchain/community/document_loaders/fs/unstructured`
+
+## Web Loaders
+
+Load documents from web pages and online sources.
+
+### Cheerio Web Loader
+
+Load and parse HTML from URLs using Cheerio.
+
+```typescript
+import { CheerioWebBaseLoader } from "@langchain/community/document_loaders/web/cheerio";
+
+const loader = new CheerioWebBaseLoader("https://example.com");
+const docs = await loader.load();
+
+// With custom selector
+const loader2 = new CheerioWebBaseLoader("https://example.com", {
+  selector: ".article-content"
+});
+```
+
+**Module**: `@langchain/community/document_loaders/web/cheerio`  
+**Requires**: `cheerio`
+
+### Puppeteer Loader
+
+Load web pages using Puppeteer (headless Chrome).
+
+```typescript
+import { PuppeteerWebBaseLoader } from "@langchain/community/document_loaders/web/puppeteer";
+
+const loader = new PuppeteerWebBaseLoader("https://example.com");
+const docs = await loader.load();
+```
+
+**Module**: `@langchain/community/document_loaders/web/puppeteer`  
+**Requires**: `puppeteer`
+
+### Playwright Loader
+
+Load web pages using Playwright.
+
+**Module**: `@langchain/community/document_loaders/web/playwright`  
+**Requires**: `playwright`
+
+### FireCrawl Loader
+
+Load web pages using the FireCrawl API for advanced web scraping.
+
+**Module**: `@langchain/community/document_loaders/web/firecrawl`  
+**Requires**: `@mendable/firecrawl-js`
+
+### Recursive URL Loader
+
+Recursively load pages from a website.
+
+**Module**: `@langchain/community/document_loaders/web/recursive_url`
+
+### Sitemap Loader
+
+Load pages from a sitemap.xml.
+
+**Module**: `@langchain/community/document_loaders/web/sitemap`
+
+### HTML Loader
+
+Load HTML content with customizable parsing.
+
+**Module**: `@langchain/community/document_loaders/web/html`  
+**Requires**: `html-to-text`
+
+### Web PDF Loader
+
+Load PDFs from URLs.
+
+**Module**: `@langchain/community/document_loaders/web/pdf`
+
+## Cloud Storage Loaders
+
+Load documents from cloud storage services.
+
+### S3 Loader
+
+Load files from Amazon S3.
+
+```typescript
+import { S3Loader } from "@langchain/community/document_loaders/web/s3";
+
+const loader = new S3Loader({
+  bucket: "my-bucket",
+  key: "path/to/file.txt",
+  region: "us-east-1"
+});
+const docs = await loader.load();
+```
+
+**Module**: `@langchain/community/document_loaders/web/s3`  
+**Requires**: `@aws-sdk/client-s3`
+
+### Azure Blob Storage Loader
+
+Load files from Azure Blob Storage.
+
+**Modules**: 
+- `@langchain/community/document_loaders/web/azure_blob_storage_file`
+- `@langchain/community/document_loaders/web/azure_blob_storage_container`
+
+**Requires**: `@azure/storage-blob`
+
+### Google Cloud Storage Loader
+
+Load files from Google Cloud Storage.
+
+**Module**: `@langchain/community/document_loaders/web/google_cloud_storage`  
+**Requires**: `@google-cloud/storage`
+
+## API & Service Loaders
+
+Load documents from various APIs and services.
+
+### GitHub Loader
+
+Load files from GitHub repositories.
+
+```typescript
+import { GithubRepoLoader } from "@langchain/community/document_loaders/web/github";
+
+const loader = new GithubRepoLoader(
+  "langchain-ai/langchainjs",
+  {
+    branch: "main",
+    recursive: true,
+    unknown: "warn",
+    maxConcurrency: 5
+  }
+);
+```
+
+**Module**: `@langchain/community/document_loaders/web/github`
+
+### Notion API Loader
+
+Load pages from Notion using the official API.
+
+**Module**: `@langchain/community/document_loaders/web/notionapi`  
+**Requires**: `@notionhq/client`, `notion-to-md`
+
+### Confluence Loader
+
+Load pages from Atlassian Confluence.
+
+**Module**: `@langchain/community/document_loaders/web/confluence`
+
+### Jira Loader
+
+Load issues from Atlassian Jira.
+
+**Module**: `@langchain/community/document_loaders/web/jira`
+
+### GitBook Loader
+
+Load documentation from GitBook.
+
+**Module**: `@langchain/community/document_loaders/web/gitbook`
+
+### Figma Loader
+
+Load designs from Figma.
+
+**Module**: `@langchain/community/document_loaders/web/figma`
+
+### Airtable Loader
+
+Load data from Airtable bases.
+
+**Module**: `@langchain/community/document_loaders/web/airtable`
+
+### YouTube Loader
+
+Load transcripts from YouTube videos.
+
+**Module**: `@langchain/community/document_loaders/web/youtube`  
+**Requires**: `youtubei.js`
+
+### Apify Dataset Loader
+
+Load data from Apify datasets.
+
+**Module**: `@langchain/community/document_loaders/web/apify_dataset`  
+**Requires**: `apify-client`
+
+### AssemblyAI Loader
+
+Transcribe audio and video using AssemblyAI.
+
+**Module**: `@langchain/community/document_loaders/web/assemblyai`  
+**Requires**: `assemblyai`
+
+### Sonix Audio Loader
+
+Transcribe audio using Sonix.
+
+**Module**: `@langchain/community/document_loaders/web/sonix_audio`  
+**Requires**: `sonix-speech-recognition`
+
+### Browserbase Loader
+
+Load web pages using Browserbase headless browsers.
+
+**Module**: `@langchain/community/document_loaders/web/browserbase`  
+**Requires**: `@browserbasehq/sdk`
+
+### Spider Loader
+
+Load web content using Spider API.
+
+**Module**: `@langchain/community/document_loaders/web/spider`  
+**Requires**: `@spider-cloud/spider-client`
+
+## Database Loaders
+
+### Couchbase Loader
+
+Load documents from Couchbase.
+
+**Module**: `@langchain/community/document_loaders/web/couchbase`  
+**Requires**: `couchbase`
+
+## Search API Loaders
+
+### SerpAPI Loader
+
+Load search results from SerpAPI.
+
+**Module**: `@langchain/community/document_loaders/web/serpapi`
+
+### SearchAPI Loader
+
+Load search results from SearchAPI.
+
+**Module**: `@langchain/community/document_loaders/web/searchapi`
+
+### Hacker News Loader
+
+Load stories and comments from Hacker News.
+
+**Module**: `@langchain/community/document_loaders/web/hn`
+
+## Specialized Loaders
+
+### College Confidential Loader
+
+Load content from College Confidential forums.
+
+**Module**: `@langchain/community/document_loaders/web/college_confidential`
+
+### IMSDb Loader
+
+Load movie scripts from IMSDb.
+
+**Module**: `@langchain/community/document_loaders/web/imsdb`
+
+### Taskade Loader
+
+Load tasks and projects from Taskade.
+
+**Module**: `@langchain/community/document_loaders/web/taskade`
+
+### Sort.xyz Blockchain Loader
+
+Load blockchain data from Sort.xyz.
+
+**Module**: `@langchain/community/document_loaders/web/sort_xyz_blockchain`
+
+## Usage Patterns
+
+### Basic Loading
+
+```typescript
+import { CSVLoader } from "@langchain/community/document_loaders/fs/csv";
+
+const loader = new CSVLoader("data.csv");
+const docs = await loader.load();
+
+console.log(docs[0].pageContent);
+console.log(docs[0].metadata);
+```
+
+### Lazy Loading
+
+Many loaders support lazy loading for large datasets:
+
+```typescript
+for await (const doc of loader.loadLazy()) {
+  console.log(doc.pageContent);
+}
+```
+
+### Custom Processing
+
+Extend loaders to customize document processing:
+
+```typescript
+import { CheerioWebBaseLoader } from "@langchain/community/document_loaders/web/cheerio";
+
+class CustomLoader extends CheerioWebBaseLoader {
+  async scrape() {
+    const $ = await super.scrape();
+    // Custom processing
+    return $;
+  }
+}
+```
+
+## Document Structure
+
+All loaders return documents with this structure:
+
+```typescript
+interface Document {
+  pageContent: string;  // The main text content
+  metadata: Record<string, any>;  // Additional information
+}
+```
+
+Common metadata fields:
+- `source`: File path or URL
+- `loc`: Location information (page, line, etc.)
+- `title`: Document title
+- `author`: Document author
+- `createdAt`: Creation timestamp
+
+## Best Practices
+
+1. **Install only what you need** - Install peer dependencies for the loaders you use
+2. **Handle errors** - Wrap loader calls in try-catch blocks
+3. **Use lazy loading** - For large datasets, use `loadLazy()` to avoid memory issues
+4. **Clean metadata** - Remove sensitive information from metadata before storing
+5. **Chunk large documents** - Use text splitters after loading large documents
+
+## Next Steps
+
+- [Text Splitters](/concepts/text-splitters) - Split documents into chunks
+- [Vector Stores](/api/community/vector-stores) - Store loaded documents
+- [Retrievers](/api/community/retrievers) - Retrieve relevant documents

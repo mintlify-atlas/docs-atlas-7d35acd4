@@ -1,0 +1,448 @@
+---
+title: Monorepo Structure
+description: Understand the workspace organization and build system of LangChain.js
+---
+
+LangChain.js is organized as a monorepo managed with [pnpm workspaces](https://pnpm.io/workspaces) and [Turborepo](https://turbo.build/). This structure allows efficient development across multiple packages with shared tooling.
+
+## Workspace Overview
+
+The repository is divided into several workspace groups defined in `pnpm-workspace.yaml`:
+
+```yaml
+packages:
+  - "libs/*"
+  - "libs/providers/*"
+  - "examples"
+  - "internal/*"
+```
+
+## Directory Structure
+
+```txt
+langchainjs/
+├── libs/                           # Public packages
+│   ├── langchain/                  # Main LangChain package
+│   ├── langchain-core/             # Core abstractions
+│   ├── langchain-community/        # Community integrations
+│   ├── langchain-textsplitters/    # Text splitting utilities
+│   ├── langchain-classic/          # Legacy package
+│   ├── langchain-mcp-adapters/     # MCP adapters
+│   ├── create-langchain-integration/ # CLI tool
+│   └── providers/                  # First-party provider integrations
+│       ├── langchain-openai/
+│       ├── langchain-anthropic/
+│       ├── langchain-google-genai/
+│       └── ...
+├── internal/                       # Internal tooling packages
+│   ├── build/                      # Build utilities
+│   ├── eslint/                     # Shared ESLint config
+│   ├── tsconfig/                   # Shared TypeScript config
+│   ├── standard-tests/             # Standard test suite
+│   ├── model-profiles/             # Model profiles
+│   └── test-helpers/               # Test utilities
+├── examples/                       # Example projects
+├── environment_tests/              # Cross-environment tests
+├── dependency_range_tests/         # Dependency version tests
+├── .github/                        # GitHub workflows and templates
+├── docs/                           # Documentation source
+├── package.json                    # Root package config
+├── pnpm-workspace.yaml             # Workspace definition
+└── turbo.json                      # Turborepo configuration
+```
+
+## Key Packages
+
+### Public Packages
+
+| Package | Path | Description |
+|---------|------|-------------|
+| `langchain` | `libs/langchain/` | Main package with agents, chains, and orchestration |
+| `@langchain/core` | `libs/langchain-core/` | Core abstractions and base classes (Runnable, BaseMessage, etc.) |
+| `@langchain/community` | `libs/langchain-community/` | Community-maintained integrations |
+| `@langchain/textsplitters` | `libs/langchain-textsplitters/` | Text splitting utilities |
+| `@langchain/openai` | `libs/providers/langchain-openai/` | OpenAI integration (chat models, embeddings) |
+| `@langchain/anthropic` | `libs/providers/langchain-anthropic/` | Anthropic integration |
+| `@langchain/google-genai` | `libs/providers/langchain-google-genai/` | Google Generative AI integration |
+| `@langchain/google-vertexai` | `libs/providers/langchain-google-vertexai/` | Google Vertex AI integration |
+| `@langchain/aws` | `libs/providers/langchain-aws/` | AWS integrations (Bedrock) |
+| `@langchain/cohere` | `libs/providers/langchain-cohere/` | Cohere integration |
+| Other providers | `libs/providers/langchain-*/` | Additional first-party integrations |
+
+### Internal Packages
+
+| Package | Path | Description |
+|---------|------|-------------|
+| `@langchain/build` | `internal/build/` | Build utilities and scripts |
+| `@langchain/eslint` | `internal/eslint/` | Shared ESLint configuration and rules |
+| `@langchain/tsconfig` | `internal/tsconfig/` | Shared TypeScript configuration |
+| `@langchain/standard-tests` | `internal/standard-tests/` | Standard test suite for integrations |
+| `@langchain/model-profiles` | `internal/model-profiles/` | Model profiles for testing |
+| `@langchain/test-helpers` | `internal/test-helpers/` | Shared test utilities |
+
+### Tools
+
+| Package | Path | Description |
+|---------|------|-------------|
+| `create-langchain-integration` | `libs/create-langchain-integration/` | CLI for scaffolding integration packages |
+
+## Package Dependencies
+
+### Dependency Graph
+
+The packages have a clear dependency hierarchy:
+
+```txt
+@langchain/core (no dependencies on other LangChain packages)
+    ↓
+    ├── langchain
+    ├── @langchain/community
+    ├── @langchain/textsplitters
+    └── @langchain/{provider} packages
+        ↓
+        └── (optional) @langchain/standard-tests (dev)
+```
+
+### Workspace References
+
+Packages use `workspace:` protocol for internal dependencies:
+
+```json
+{
+  "dependencies": {
+    "@langchain/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@langchain/eslint": "workspace:*",
+    "@langchain/tsconfig": "workspace:*",
+    "@langchain/standard-tests": "workspace:*"
+  }
+}
+```
+
+- `workspace:^` - Use the workspace version, publish with caret range
+- `workspace:*` - Use the workspace version, publish with exact version
+
+## Build System
+
+### Turborepo
+
+Turborepo orchestrates tasks across the monorepo with caching and parallelization.
+
+**Configuration** (`turbo.json`):
+
+```json
+{
+  "tasks": {
+    "build:compile": {
+      "dependsOn": ["^build:compile"],
+      "outputs": ["dist/**"]
+    },
+    "test": {
+      "dependsOn": ["build:compile"],
+      "inputs": ["src/**", "tests/**"]
+    },
+    "lint": {
+      "inputs": ["src/**/*.ts", "eslint.config.ts"]
+    }
+  }
+}
+```
+
+**Key features**:
+
+- **Task dependencies**: `build:compile` must complete before `test`
+- **Incremental builds**: Only rebuilds changed packages
+- **Remote caching**: Share build cache across team (if configured)
+- **Parallel execution**: Runs independent tasks in parallel
+
+### Build Pipeline
+
+Each package follows a similar build pipeline:
+
+1. **TypeScript compilation** - `tsdown` compiles TypeScript to ESM and CJS
+2. **Type generation** - Generate `.d.ts` and `.d.cts` declaration files
+3. **Source maps** - Generate source maps for debugging
+
+**Build command**:
+
+```bash
+# Build all packages
+pnpm build
+
+# Build specific package
+pnpm --filter @langchain/core build
+
+# Watch mode
+pnpm watch
+```
+
+### tsdown Configuration
+
+Packages use `tsdown` for building with dual module support (ESM + CJS).
+
+**Example** (`libs/langchain-core/tsdown.config.ts`):
+
+```typescript
+import { defineConfig } from "tsdown";
+
+export default defineConfig({
+  entry: ["src/**/*.ts"],
+  format: ["esm", "cjs"],
+  dts: true,
+  sourcemap: true,
+  clean: true,
+  splitting: false,
+  minify: false,
+});
+```
+
+## Package Structure
+
+Each package follows a consistent structure:
+
+```txt
+langchain-{package}/
+├── src/                    # Source code
+│   ├── index.ts           # Main entry point
+│   ├── chat_models/       # Feature directory
+│   │   ├── index.ts
+│   │   └── tests/         # Tests alongside code
+│   │       ├── index.test.ts
+│   │       └── index.int.test.ts
+│   └── ...
+├── dist/                   # Build output (generated)
+│   ├── index.js           # ESM output
+│   ├── index.cjs          # CJS output
+│   ├── index.d.ts         # ESM types
+│   └── index.d.cts        # CJS types
+├── package.json           # Package config
+├── tsconfig.json          # TypeScript config
+├── tsdown.config.ts       # Build config
+├── vitest.config.ts       # Test config
+├── eslint.config.ts       # ESLint config
+├── turbo.json             # Turborepo config (if needed)
+├── README.md              # Documentation
+├── LICENSE                # License file
+└── .env.example           # Example environment variables
+```
+
+## Common Scripts
+
+All packages expose consistent npm scripts:
+
+```json
+{
+  "scripts": {
+    "build": "turbo build:compile",
+    "build:compile": "tsdown",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:int": "vitest run --mode int",
+    "lint": "eslint src/",
+    "lint:fix": "eslint --fix src/",
+    "format": "prettier --write src/",
+    "format:check": "prettier --check src/",
+    "clean": "rm -rf dist/ .turbo/"
+  }
+}
+```
+
+## Shared Configuration
+
+### TypeScript
+
+Packages extend from shared TypeScript config:
+
+```json
+{
+  "extends": "@langchain/tsconfig/base.json",
+  "compilerOptions": {
+    "outDir": "./dist"
+  },
+  "include": ["src/**/*"]
+}
+```
+
+Base config (`internal/tsconfig/base.json`):
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  }
+}
+```
+
+### ESLint
+
+Packages extend from shared ESLint config:
+
+```typescript
+import { defineConfig } from "eslint";
+import langchainConfig from "@langchain/eslint/config";
+
+export default defineConfig([
+  ...langchainConfig,
+  {
+    // Package-specific overrides
+  },
+]);
+```
+
+Shared config enforces:
+- No `instanceof` (use type guards)
+- No `process.env` (except in tests)
+- No floating promises
+- No explicit `any`
+- Prefer template literals
+- File extensions required in imports
+
+### Prettier
+
+Shared Prettier config at root (`.prettierrc`):
+
+```json
+{
+  "semi": true,
+  "trailingComma": "es5",
+  "singleQuote": false,
+  "printWidth": 80,
+  "tabWidth": 2
+}
+```
+
+## Development Workflow
+
+### Adding a New Package
+
+1. **Create package directory** in appropriate location (`libs/` or `libs/providers/`)
+2. **Copy structure** from existing package or use `create-langchain-integration`
+3. **Configure `package.json`** with correct dependencies
+4. **Extend shared configs** for TypeScript, ESLint, Vitest
+5. **Add to workspace** (automatically picked up by pnpm)
+6. **Build core first** if your package depends on `@langchain/core`
+
+### Working Across Packages
+
+1. **Install dependencies** - `pnpm install` (from root)
+2. **Build core package** - `pnpm --filter @langchain/core build`
+3. **Build your package** - `pnpm --filter your-package build`
+4. **Run tests** - `pnpm --filter your-package test`
+
+### Running Commands
+
+```bash
+# Run command in specific package
+pnpm --filter <package-name> <command>
+
+# Run command in all packages
+pnpm -r <command>
+
+# Run command in packages matching pattern
+pnpm --filter "@langchain/*" <command>
+
+# Run command from package directory
+cd libs/langchain-core
+pnpm test
+```
+
+## Dependency Management
+
+### Installing Dependencies
+
+```bash
+# Add to specific package
+pnpm --filter @langchain/core add lodash
+
+# Add as dev dependency
+pnpm --filter @langchain/core add -D @types/lodash
+
+# Add to root (shared dev tools)
+pnpm add -D -w prettier
+```
+
+### Dependency Overrides
+
+Root `package.json` can override transitive dependencies:
+
+```json
+{
+  "pnpm": {
+    "overrides": {
+      "@langchain/core": "workspace:^",
+      "protobufjs": "^7.2.5"
+    }
+  }
+}
+```
+
+## Environment Tests
+
+The monorepo includes tests for different JavaScript environments:
+
+- **Node.js ESM** - `environment_tests/test-exports-esm/`
+- **Node.js CJS** - `environment_tests/test-exports-cjs/`
+- **Cloudflare Workers** - `environment_tests/test-exports-cf/`
+- **Vercel Edge** - `environment_tests/test-exports-vercel/`
+- **Webpack** - `environment_tests/test-exports-webpack/`
+- **Vite** - `environment_tests/test-exports-vite/`
+- **Bun** - `environment_tests/test-exports-bun/`
+
+Run with Docker:
+
+```bash
+pnpm test:exports:docker
+```
+
+## Best Practices
+
+### Import Conventions
+
+```typescript
+// Always include .js extension for local imports (ESM)
+import { Something } from "./something.js";
+
+// Use named exports, not default exports
+export { MyClass, myFunction };
+
+// Import from workspace packages
+import { Runnable } from "@langchain/core/runnables";
+```
+
+### File Naming
+
+- Source files: `my_module.ts` (snake_case)
+- Test files: `my_module.test.ts`, `my_module.int.test.ts`
+- Type definitions: `types.ts`
+- Index files: `index.ts`
+
+### Circular Dependencies
+
+Avoid circular dependencies between packages. Check with:
+
+```bash
+pnpm --filter @langchain/core lint:dpdm
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Contributing" icon="code-pull-request" href="/development/contributing">
+    Learn the contribution workflow
+  </Card>
+  <Card title="Creating Integrations" icon="puzzle-piece" href="/development/creating-integrations">
+    Build new integration packages
+  </Card>
+  <Card title="Testing" icon="vial" href="/development/testing">
+    Understand the testing infrastructure
+  </Card>
+</CardGroup>

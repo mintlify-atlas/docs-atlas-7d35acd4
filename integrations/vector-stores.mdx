@@ -1,0 +1,461 @@
+---
+title: Vector Stores
+description: Store and retrieve embeddings with popular vector databases
+---
+
+Vector stores (also called vector databases) enable efficient storage and similarity search over embeddings. LangChain.js provides integrations with over 40 vector store providers, from managed cloud services to self-hosted solutions.
+
+## Popular Vector Stores
+
+<CardGroup cols={2}>
+  <Card title="Pinecone" icon="pinecone" href="#pinecone">
+    Fully managed, serverless vector database
+  </Card>
+  
+  <Card title="Qdrant" icon="qdrant" href="#qdrant">
+    High-performance open-source vector search
+  </Card>
+  
+  <Card title="Weaviate" icon="weaviate" href="#weaviate">
+    Open-source vector database with GraphQL
+  </Card>
+  
+  <Card title="Chroma" icon="chroma" href="#chroma">
+    AI-native embedding database
+  </Card>
+  
+  <Card title="MongoDB Atlas" icon="mongodb" href="#mongodb-atlas">
+    Vector search in MongoDB
+  </Card>
+  
+  <Card title="Redis" icon="redis" href="#redis">
+    Vector search with Redis Stack
+  </Card>
+</CardGroup>
+
+## Pinecone
+
+Pinecone is a fully managed vector database that scales automatically.
+
+### Installation
+
+```bash
+npm install @langchain/pinecone @pinecone-database/pinecone
+```
+
+### Usage
+
+```typescript
+import { PineconeStore } from "@langchain/pinecone";
+import { OpenAIEmbeddings } from "@langchain/openai";
+import { Pinecone } from "@pinecone-database/pinecone";
+
+// Initialize Pinecone client
+const pinecone = new Pinecone({
+  apiKey: process.env.PINECONE_API_KEY,
+});
+
+const pineconeIndex = pinecone.Index("my-index");
+
+// Create vector store
+const vectorStore = await PineconeStore.fromExistingIndex(
+  new OpenAIEmbeddings(),
+  { pineconeIndex }
+);
+
+// Add documents
+await vectorStore.addDocuments([
+  { pageContent: "LangChain is a framework for LLM apps", metadata: { source: "docs" } },
+  { pageContent: "Vector stores enable semantic search", metadata: { source: "docs" } },
+]);
+
+// Similarity search
+const results = await vectorStore.similaritySearch(
+  "What is LangChain?",
+  4 // number of results
+);
+
+console.log(results);
+```
+
+### Advanced Search
+
+```typescript
+// Search with score threshold
+const resultsWithScores = await vectorStore.similaritySearchWithScore(
+  "vector databases",
+  4
+);
+
+for (const [doc, score] of resultsWithScores) {
+  console.log(`Score: ${score}`);
+  console.log(`Content: ${doc.pageContent}`);
+}
+
+// Filter by metadata
+const filteredResults = await vectorStore.similaritySearch(
+  "LangChain features",
+  4,
+  { source: "docs" } // metadata filter
+);
+```
+
+## Qdrant
+
+Qdrant is a high-performance, open-source vector search engine.
+
+### Installation
+
+```bash
+npm install @langchain/qdrant @qdrant/js-client-rest
+```
+
+### Usage
+
+```typescript
+import { QdrantVectorStore } from "@langchain/qdrant";
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+// Connect to Qdrant
+const vectorStore = await QdrantVectorStore.fromExistingCollection(
+  new OpenAIEmbeddings(),
+  {
+    url: process.env.QDRANT_URL,
+    apiKey: process.env.QDRANT_API_KEY,
+    collectionName: "my-collection",
+  }
+);
+
+// Add and search
+await vectorStore.addDocuments([
+  { pageContent: "Qdrant supports filtered search", metadata: { type: "feature" } },
+]);
+
+const results = await vectorStore.similaritySearch("search capabilities", 3);
+```
+
+### Local Deployment
+
+```typescript
+// Connect to local Qdrant instance
+const localVectorStore = await QdrantVectorStore.fromExistingCollection(
+  new OpenAIEmbeddings(),
+  {
+    url: "http://localhost:6333",
+    collectionName: "my-collection",
+  }
+);
+```
+
+## Weaviate
+
+Weaviate is an open-source vector database with rich querying capabilities.
+
+### Installation
+
+```bash
+npm install @langchain/weaviate weaviate-ts-client
+```
+
+### Usage
+
+```typescript
+import { WeaviateStore } from "@langchain/weaviate";
+import { OpenAIEmbeddings } from "@langchain/openai";
+import weaviate from "weaviate-ts-client";
+
+const client = weaviate.client({
+  scheme: "https",
+  host: process.env.WEAVIATE_HOST,
+  apiKey: new weaviate.ApiKey(process.env.WEAVIATE_API_KEY),
+});
+
+const vectorStore = await WeaviateStore.fromExistingIndex(
+  new OpenAIEmbeddings(),
+  {
+    client,
+    indexName: "MyDocuments",
+  }
+);
+
+await vectorStore.addDocuments([
+  { pageContent: "Weaviate has a GraphQL API", metadata: { category: "api" } },
+]);
+
+const results = await vectorStore.similaritySearch("GraphQL queries", 2);
+```
+
+## Chroma
+
+Chroma is an AI-native embedding database designed for developers.
+
+### Installation
+
+```bash
+npm install @langchain/community chromadb
+```
+
+### Usage
+
+```typescript
+import { Chroma } from "@langchain/community/vectorstores/chroma";
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+const vectorStore = await Chroma.fromExistingCollection(
+  new OpenAIEmbeddings(),
+  {
+    collectionName: "my-collection",
+    url: "http://localhost:8000", // Default Chroma URL
+  }
+);
+
+// Create from documents
+const newVectorStore = await Chroma.fromDocuments(
+  [
+    { pageContent: "Chroma is easy to use", metadata: { id: 1 } },
+    { pageContent: "It runs locally or in the cloud", metadata: { id: 2 } },
+  ],
+  new OpenAIEmbeddings(),
+  {
+    collectionName: "new-collection",
+  }
+);
+
+const results = await newVectorStore.similaritySearch("easy to use", 2);
+```
+
+## MongoDB Atlas
+
+MongoDB Atlas provides vector search capabilities integrated with your document database.
+
+### Installation
+
+```bash
+npm install @langchain/mongodb mongodb
+```
+
+### Usage
+
+```typescript
+import { MongoDBAtlasVectorSearch } from "@langchain/mongodb";
+import { OpenAIEmbeddings } from "@langchain/openai";
+import { MongoClient } from "mongodb";
+
+const client = new MongoClient(process.env.MONGODB_ATLAS_URI);
+await client.connect();
+
+const collection = client.db("myDatabase").collection("myCollection");
+
+const vectorStore = new MongoDBAtlasVectorSearch(
+  new OpenAIEmbeddings(),
+  {
+    collection,
+    indexName: "vector_index",
+  }
+);
+
+await vectorStore.addDocuments([
+  { pageContent: "MongoDB integrates vector and document search", metadata: { type: "feature" } },
+]);
+
+const results = await vectorStore.similaritySearch("document database", 3);
+```
+
+## Redis
+
+Redis Stack adds vector search capabilities to Redis.
+
+### Installation
+
+```bash
+npm install @langchain/redis redis
+```
+
+### Usage
+
+```typescript
+import { RedisVectorStore } from "@langchain/redis";
+import { OpenAIEmbeddings } from "@langchain/openai";
+import { createClient } from "redis";
+
+const client = createClient({
+  url: process.env.REDIS_URL,
+});
+await client.connect();
+
+const vectorStore = new RedisVectorStore(new OpenAIEmbeddings(), {
+  redisClient: client,
+  indexName: "my-index",
+});
+
+await vectorStore.addDocuments([
+  { pageContent: "Redis is fast and reliable", metadata: { tag: "performance" } },
+]);
+
+const results = await vectorStore.similaritySearch("performance", 2);
+
+await client.disconnect();
+```
+
+## Additional Vector Stores
+
+<CardGroup cols={3}>
+  <Card title="FAISS" icon="faiss">
+    `@langchain/community` - Facebook AI similarity search
+  </Card>
+  
+  <Card title="Supabase" icon="supabase">
+    `@langchain/community` - pgvector in Supabase
+  </Card>
+  
+  <Card title="Elasticsearch" icon="elasticsearch">
+    `@langchain/community` - Vector search in Elasticsearch
+  </Card>
+  
+  <Card title="Azure AI Search" icon="microsoft">
+    `@langchain/community` - Azure Cognitive Search
+  </Card>
+  
+  <Card title="AnalyticDB" icon="alibaba">
+    `@langchain/community` - Alibaba Cloud vector DB
+  </Card>
+  
+  <Card title="Cassandra" icon="cassandra">
+    `@langchain/community` - Apache Cassandra
+  </Card>
+  
+  <Card title="ClickHouse" icon="clickhouse">
+    `@langchain/community` - Vector search in ClickHouse
+  </Card>
+  
+  <Card title="Milvus" icon="milvus">
+    `@langchain/community` - Open-source vector DB
+  </Card>
+  
+  <Card title="Turbopuffer" icon="turbopuffer">
+    `@langchain/turbopuffer` - Fast vector search
+  </Card>
+</CardGroup>
+
+## Community Vector Stores
+
+Many additional vector stores are available in `@langchain/community`:
+
+```bash
+npm install @langchain/community
+```
+
+```typescript
+import { FAISSStore } from "@langchain/community/vectorstores/faiss";
+import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
+import { ElasticVectorSearch } from "@langchain/community/vectorstores/elasticsearch";
+import { AzureAISearchVectorStore } from "@langchain/community/vectorstores/azure_aisearch";
+```
+
+## Common Patterns
+
+### As a Retriever
+
+Convert any vector store to a retriever for use in chains:
+
+```typescript
+const retriever = vectorStore.asRetriever({
+  k: 6, // number of documents to retrieve
+  searchType: "similarity", // or "mmr" for maximum marginal relevance
+});
+
+// Use in a chain
+import { ChatOpenAI } from "@langchain/openai";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { RunnableSequence } from "@langchain/core/runnables";
+
+const model = new ChatOpenAI();
+
+const chain = RunnableSequence.from([
+  {
+    context: retriever,
+    question: (input: string) => input,
+  },
+  model,
+  new StringOutputParser(),
+]);
+
+const answer = await chain.invoke("What is LangChain?");
+```
+
+### Maximum Marginal Relevance (MMR)
+
+MMR balances relevance with diversity:
+
+```typescript
+const diverseResults = await vectorStore.maxMarginalRelevanceSearch(
+  "machine learning",
+  {
+    k: 5, // number of results
+    fetchK: 20, // number of candidates to consider
+    lambda: 0.5, // 0 = max diversity, 1 = max relevance
+  }
+);
+```
+
+### Delete Documents
+
+```typescript
+// Delete by IDs
+await vectorStore.delete({ ids: ["doc1", "doc2"] });
+
+// Some stores support deletion by filter
+await vectorStore.delete({ filter: { source: "outdated" } });
+```
+
+## Choosing a Vector Store
+
+Consider these factors when selecting a vector store:
+
+| Factor | Managed Options | Self-Hosted Options |
+|--------|----------------|---------------------|
+| **Ease of Setup** | Pinecone, MongoDB Atlas | Chroma, Qdrant |
+| **Scalability** | Pinecone, Weaviate Cloud | Qdrant, Milvus |
+| **Cost** | Usage-based pricing | Self-hosted (compute only) |
+| **Performance** | All providers optimize for speed | FAISS (in-memory, fastest) |
+| **Filtering** | Most support metadata filtering | Check specific features |
+| **Integration** | Cloud ecosystems | More flexibility |
+
+## Best Practices
+
+1. **Index configuration**: Set appropriate dimensions and distance metrics
+2. **Batch operations**: Add documents in batches for better performance
+3. **Metadata filtering**: Use metadata to narrow search scope
+4. **Monitor performance**: Track search latency and relevance
+5. **Backup data**: Ensure vector stores are included in backups
+6. **Test locally**: Use local instances (Chroma, FAISS) for development
+
+## Distance Metrics
+
+Vector stores use different distance metrics for similarity:
+
+- **Cosine Similarity**: Measures angle between vectors (most common)
+- **Euclidean Distance**: Straight-line distance between points
+- **Dot Product**: Direct vector multiplication
+
+Most providers default to cosine similarity, which works well for normalized embeddings.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Embeddings" href="/integrations/embeddings">
+    Generate embeddings for your documents
+  </Card>
+  
+  <Card title="Document Loaders" href="/integrations/document-loaders">
+    Load documents into vector stores
+  </Card>
+  
+  <Card title="Retrieval" href="/guides/retrieval">
+    Build RAG applications with vector stores
+  </Card>
+  
+  <Card title="Retrievers" href="/guides/retrievers">
+    Advanced retrieval patterns
+  </Card>
+</CardGroup>

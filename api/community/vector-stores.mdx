@@ -1,0 +1,606 @@
+---
+title: Vector Stores
+description: Store and search embeddings using community vector store integrations
+---
+
+Vector stores allow you to store and search embeddings. They are essential for semantic search, retrieval-augmented generation (RAG), and other applications that require finding similar documents.
+
+## Installation
+
+```bash
+npm install @langchain/community
+```
+
+Each vector store requires its own client library:
+
+```bash
+# Examples
+npm install chromadb              # Chroma
+npm install hnswlib-node          # HNSWlib
+npm install @zilliz/milvus2-sdk-node  # Milvus
+npm install pg                    # PGVector
+```
+
+## Cloud Vector Databases
+
+Managed vector database services.
+
+### Chroma
+
+Open-source embedding database with Python and JavaScript clients.
+
+```typescript
+import { Chroma } from "@langchain/community/vectorstores/chroma";
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+// Create from documents
+const vectorStore = await Chroma.fromDocuments(
+  docs,
+  new OpenAIEmbeddings(),
+  {
+    collectionName: "my-collection",
+    url: "http://localhost:8000", // Chroma server URL
+  }
+);
+
+// Search
+const results = await vectorStore.similaritySearch("query", 4);
+```
+
+**Module**: `@langchain/community/vectorstores/chroma`  
+**Requires**: `chromadb`
+
+### Pinecone
+
+For Pinecone, use the official integration package:
+
+```bash
+npm install @langchain/pinecone
+```
+
+See [@langchain/pinecone documentation](/docs/integrations/vectorstores/pinecone).
+
+### Weaviate
+
+For Weaviate, use the official integration package:
+
+```bash
+npm install @langchain/weaviate
+```
+
+### Qdrant
+
+For Qdrant, use the official integration package:
+
+```bash
+npm install @langchain/qdrant
+```
+
+## Self-Hosted Vector Stores
+
+Vector stores you can run locally or on your own infrastructure.
+
+### FAISS
+
+Facebook AI Similarity Search - efficient similarity search library.
+
+```typescript
+import { FaissStore } from "@langchain/community/vectorstores/faiss";
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+// Create and save
+const vectorStore = await FaissStore.fromDocuments(
+  docs,
+  new OpenAIEmbeddings()
+);
+await vectorStore.save("faiss_index");
+
+// Load and search
+const loadedStore = await FaissStore.load(
+  "faiss_index",
+  new OpenAIEmbeddings()
+);
+const results = await loadedStore.similaritySearch("query", 4);
+```
+
+**Module**: `@langchain/community/vectorstores/faiss`  
+**Requires**: `faiss-node`
+
+### HNSWlib
+
+Hierarchical Navigable Small World - fast approximate nearest neighbor search.
+
+```typescript
+import { HNSWLib } from "@langchain/community/vectorstores/hnswlib";
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+const vectorStore = await HNSWLib.fromDocuments(
+  docs,
+  new OpenAIEmbeddings()
+);
+
+await vectorStore.save("hnswlib_index");
+
+const loadedStore = await HNSWLib.load(
+  "hnswlib_index",
+  new OpenAIEmbeddings()
+);
+```
+
+**Module**: `@langchain/community/vectorstores/hnswlib`  
+**Requires**: `hnswlib-node`
+
+### LanceDB
+
+Open-source vector database built on Lance format.
+
+**Module**: `@langchain/community/vectorstores/lancedb`  
+**Requires**: `@lancedb/lancedb`
+
+### Usearch
+
+Single-header vector search engine.
+
+**Module**: `@langchain/community/vectorstores/usearch`  
+**Requires**: `usearch`
+
+### Voy
+
+WASM-based vector search for browser environments.
+
+**Module**: `@langchain/community/vectorstores/voy`  
+**Requires**: `voy-search`
+
+### CloseVector
+
+Vector search with Node.js and web support.
+
+**Modules**:
+- `@langchain/community/vectorstores/closevector/node`
+- `@langchain/community/vectorstores/closevector/web`
+
+**Requires**: `closevector-node` or `closevector-web`
+
+## Database Extensions
+
+Vector search capabilities added to existing databases.
+
+### PGVector
+
+PostgreSQL extension for vector similarity search.
+
+```typescript
+import { PGVectorStore } from "@langchain/community/vectorstores/pgvector";
+import { OpenAIEmbeddings } from "@langchain/openai";
+import { PoolConfig } from "pg";
+
+const config: PoolConfig = {
+  host: "localhost",
+  port: 5432,
+  database: "vectordb",
+  user: "user",
+  password: "password",
+};
+
+const vectorStore = await PGVectorStore.initialize(
+  new OpenAIEmbeddings(),
+  {
+    postgresConnectionOptions: config,
+    tableName: "documents",
+    columns: {
+      idColumnName: "id",
+      vectorColumnName: "vector",
+      contentColumnName: "content",
+      metadataColumnName: "metadata",
+    },
+  }
+);
+
+await vectorStore.addDocuments(docs);
+```
+
+**Module**: `@langchain/community/vectorstores/pgvector`  
+**Requires**: `pg`, `pg-copy-streams`
+
+### Supabase
+
+Supabase with pgvector extension.
+
+```typescript
+import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
+import { OpenAIEmbeddings } from "@langchain/openai";
+import { createClient } from "@supabase/supabase-js";
+
+const client = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_PRIVATE_KEY
+);
+
+const vectorStore = await SupabaseVectorStore.fromDocuments(
+  docs,
+  new OpenAIEmbeddings(),
+  {
+    client,
+    tableName: "documents",
+    queryName: "match_documents",
+  }
+);
+```
+
+**Module**: `@langchain/community/vectorstores/supabase`  
+**Requires**: `@supabase/supabase-js`
+
+### Neon
+
+Serverless Postgres with pgvector.
+
+**Module**: `@langchain/community/vectorstores/neon`  
+**Requires**: `@neondatabase/serverless`
+
+### Vercel Postgres
+
+Vercel's Postgres with pgvector support.
+
+**Module**: `@langchain/community/vectorstores/vercel_postgres`  
+**Requires**: `@vercel/postgres`
+
+### SingleStore
+
+Distributed SQL database with vector support.
+
+**Module**: `@langchain/community/vectorstores/singlestore`  
+**Requires**: `mysql2`
+
+### MariaDB
+
+MariaDB with vector search capabilities.
+
+**Module**: `@langchain/community/vectorstores/mariadb`  
+**Requires**: `mariadb`
+
+### ClickHouse
+
+OLAP database with vector search.
+
+**Module**: `@langchain/community/vectorstores/clickhouse`  
+**Requires**: `@clickhouse/client`
+
+### TypeORM
+
+Use vector stores with TypeORM-supported databases.
+
+**Module**: `@langchain/community/vectorstores/typeorm`  
+**Requires**: `typeorm`
+
+### Cassandra
+
+Apache Cassandra with vector search.
+
+**Module**: `@langchain/community/vectorstores/cassandra`  
+**Requires**: `cassandra-driver`
+
+### Couchbase
+
+Couchbase with full-text and vector search.
+
+**Modules**:
+- `@langchain/community/vectorstores/couchbase_search` - Vector search
+- `@langchain/community/vectorstores/couchbase_query` - Query-based search
+
+**Requires**: `couchbase`
+
+### MongoDB
+
+For MongoDB Atlas Vector Search, use:
+
+```bash
+npm install @langchain/mongodb
+```
+
+## Enterprise Vector Stores
+
+Enterprise-grade vector search solutions.
+
+### Azure AI Search
+
+Microsoft's cloud search service with vector capabilities.
+
+```typescript
+import { AzureAISearchVectorStore } from "@langchain/community/vectorstores/azure_aisearch";
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+const vectorStore = new AzureAISearchVectorStore(new OpenAIEmbeddings(), {
+  endpoint: process.env.AZURE_AI_SEARCH_ENDPOINT,
+  key: process.env.AZURE_AI_SEARCH_KEY,
+  indexName: "my-index",
+});
+```
+
+**Module**: `@langchain/community/vectorstores/azure_aisearch`  
+**Requires**: `@azure/search-documents`
+
+### Elasticsearch
+
+Popular search and analytics engine with vector support.
+
+**Module**: `@langchain/community/vectorstores/elasticsearch`  
+**Requires**: `@elastic/elasticsearch`
+
+### OpenSearch
+
+AWS's open-source search and analytics suite.
+
+**Module**: `@langchain/community/vectorstores/opensearch`  
+**Requires**: `@opensearch-project/opensearch`
+
+### Rockset
+
+Real-time analytics database with vector search.
+
+**Module**: `@langchain/community/vectorstores/rockset`  
+**Requires**: `@rockset/client`
+
+### Vectara
+
+Managed vector search and semantic search platform.
+
+**Module**: `@langchain/community/vectorstores/vectara`
+
+### MyScale
+
+ClickHouse-based vector database.
+
+**Module**: `@langchain/community/vectorstores/myscale`  
+**Requires**: `@clickhouse/client`
+
+## Cloud Platform Vector Stores
+
+Vector stores integrated with cloud platforms.
+
+### Google Vertex AI Vector Search
+
+Google Cloud's vector search service.
+
+**Module**: `@langchain/community/vectorstores/googlevertexai`  
+**Requires**: `google-auth-library`
+
+### Convex
+
+Backend platform with vector search.
+
+**Module**: `@langchain/community/vectorstores/convex`  
+**Requires**: `convex`
+
+### Firebase
+
+For Firestore vector search, integration coming soon.
+
+### Xata
+
+Serverless database with vector search.
+
+**Module**: `@langchain/community/vectorstores/xata`  
+**Requires**: `@xata.io/client`
+
+### Upstash
+
+Serverless Redis with vector support.
+
+**Module**: `@langchain/community/vectorstores/upstash`  
+**Requires**: `@upstash/vector`
+
+### Azion EdgeSQL
+
+Edge computing with vector storage.
+
+**Module**: `@langchain/community/vectorstores/azion_edgesql`  
+**Requires**: `azion`
+
+### LibSQL
+
+LibSQL (Turso) with vector support.
+
+**Module**: `@langchain/community/vectorstores/libsql`  
+**Requires**: `@libsql/client`
+
+## Specialized Vector Stores
+
+### Milvus
+
+Open-source vector database for scalable similarity search.
+
+**Module**: `@langchain/community/vectorstores/milvus`  
+**Requires**: `@zilliz/milvus2-sdk-node`
+
+### AstraDB
+
+DataStax Astra DB with vector search.
+
+**Module**: `@langchain/community/vectorstores/astradb`  
+**Requires**: `@datastax/astra-db-ts`
+
+### Neo4j
+
+Graph database with vector search capabilities.
+
+**Module**: `@langchain/community/vectorstores/neo4j_vector`  
+**Requires**: `neo4j-driver`
+
+### SAP HANA
+
+SAP HANA Cloud with vector engine.
+
+**Module**: `@langchain/community/vectorstores/hanavector`  
+**Requires**: `hdb`
+
+### AnalyticDB
+
+Alibaba Cloud's analytics database with vector support.
+
+**Module**: `@langchain/community/vectorstores/analyticdb`
+
+### Momento
+
+Serverless cache with vector index.
+
+**Module**: `@langchain/community/vectorstores/momento_vector_index`  
+**Requires**: `@gomomento/sdk-core`
+
+### Zep
+
+Long-term memory store for AI assistants.
+
+**Modules**:
+- `@langchain/community/vectorstores/zep` - Self-hosted
+- `@langchain/community/vectorstores/zep_cloud` - Cloud version
+
+**Requires**: `@getzep/zep-js` or `@getzep/zep-cloud`
+
+### Tigris
+
+Serverless NoSQL with vector search.
+
+**Module**: `@langchain/community/vectorstores/tigris`
+
+### Turbopuffer
+
+Fast vector storage and search.
+
+**Module**: `@langchain/community/vectorstores/turbopuffer`
+
+### Typesense
+
+Open-source search engine with vector support.
+
+**Module**: `@langchain/community/vectorstores/typesense`  
+**Requires**: `typesense`
+
+### Prisma
+
+ORM with vector search support.
+
+**Module**: `@langchain/community/vectorstores/prisma`
+
+## Common Operations
+
+### Creating a Vector Store
+
+```typescript
+// From documents
+const vectorStore = await VectorStore.fromDocuments(
+  docs,
+  embeddings,
+  config
+);
+
+// From texts
+const vectorStore = await VectorStore.fromTexts(
+  ["text1", "text2"],
+  [{ source: "1" }, { source: "2" }],
+  embeddings,
+  config
+);
+
+// From existing store
+const vectorStore = new VectorStore(embeddings, config);
+```
+
+### Adding Documents
+
+```typescript
+// Add documents
+await vectorStore.addDocuments(docs);
+
+// Add with IDs
+const ids = await vectorStore.addDocuments(docs);
+```
+
+### Searching
+
+```typescript
+// Similarity search
+const results = await vectorStore.similaritySearch("query", k);
+
+// Similarity search with scores
+const resultsWithScores = await vectorStore.similaritySearchWithScore(
+  "query",
+  k
+);
+
+// Max marginal relevance search (diversity)
+const diverseResults = await vectorStore.maxMarginalRelevanceSearch(
+  "query",
+  { k: 4, fetchK: 20 }
+);
+```
+
+### Filtering
+
+```typescript
+// Filter by metadata
+const results = await vectorStore.similaritySearch(
+  "query",
+  4,
+  { source: "wikipedia" }
+);
+```
+
+### Deleting
+
+```typescript
+// Delete by IDs
+await vectorStore.delete({ ids: ["id1", "id2"] });
+
+// Delete by filter (if supported)
+await vectorStore.delete({ filter: { source: "old" } });
+```
+
+### As Retriever
+
+```typescript
+const retriever = vectorStore.asRetriever({
+  k: 4,
+  searchType: "similarity", // or "mmr"
+});
+
+const docs = await retriever.invoke("query");
+```
+
+## Best Practices
+
+1. **Choose the right store** - Consider scale, performance, and cost
+2. **Use appropriate embeddings** - Match embedding dimensions to your model
+3. **Optimize chunk size** - Typically 200-500 tokens per chunk
+4. **Add metadata** - Include source, timestamps, and other searchable fields
+5. **Use filters** - Narrow search scope for better performance
+6. **Consider MMR** - For diverse results, use max marginal relevance
+7. **Batch operations** - Add documents in batches for better performance
+8. **Monitor performance** - Track search latency and relevance
+
+## Choosing a Vector Store
+
+**For prototyping**:
+- FAISS (local, fast, simple)
+- HNSWlib (local, persistent)
+- Chroma (easy setup, good DX)
+
+**For production (cloud)**:
+- Pinecone (managed, reliable)
+- Weaviate (flexible, scalable)
+- Qdrant (high performance)
+- Azure AI Search (enterprise)
+
+**For production (self-hosted)**:
+- Milvus (highly scalable)
+- Weaviate (open-source)
+- PostgreSQL + pgvector (existing infra)
+
+**For edge/browser**:
+- Voy (WASM-based)
+- CloseVector (web support)
+
+## Next Steps
+
+- [Retrievers](/api/community/retrievers) - Retrieve documents from vector stores
+- [Embeddings](/concepts/embeddings) - Generate embeddings
+- [RAG Tutorial](/tutorials/rag) - Build a RAG application

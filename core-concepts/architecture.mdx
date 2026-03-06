@@ -1,0 +1,308 @@
+---
+title: Architecture
+description: Understanding LangChain.js architecture and design principles
+---
+
+## Overview
+
+LangChain.js is built on a composable architecture that makes it easy to build complex LLM applications from simple, interoperable components. The framework follows several key design principles:
+
+- **Modularity**: Every component is self-contained and can be used independently
+- **Composability**: Components can be chained together using the Runnable interface
+- **Type Safety**: Full TypeScript support with strict typing throughout
+- **Streaming**: First-class support for streaming responses
+- **Observability**: Built-in tracing and callbacks for debugging and monitoring
+
+## Core Abstractions
+
+The framework is organized around several foundational abstractions:
+
+### Runnables
+
+The `Runnable` interface is the foundation of LangChain.js. It provides a standard interface for components that can be invoked, streamed, and batched.
+
+```typescript
+import { Runnable } from "@langchain/core/runnables";
+
+// All major components implement Runnable:
+// - Chat Models
+// - Prompts
+// - Retrievers
+// - Chains
+// - Tools
+```
+
+Every Runnable supports:
+- `invoke()` - Single invocation
+- `stream()` - Streaming invocation
+- `batch()` - Batch invocation
+
+See the [Runnables](/core-concepts/runnables) page for details.
+
+### Messages
+
+Messages represent the fundamental units of conversation. LangChain.js provides typed message classes for different roles:
+
+```typescript
+import {
+  HumanMessage,
+  AIMessage,
+  SystemMessage,
+  ToolMessage,
+} from "@langchain/core/messages";
+```
+
+See the [Messages](/core-concepts/messages) page for details.
+
+### Chat Models
+
+Chat models are the reasoning engines that power LangChain applications. They extend the Runnable interface and provide additional capabilities like tool calling and structured output.
+
+```typescript
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
+```
+
+See the [Chat Models](/core-concepts/chat-models) page for details.
+
+### Tools
+
+Tools give LLMs the ability to take actions and interact with external systems. They're defined using Zod schemas for type-safe input validation.
+
+```typescript
+import { StructuredTool, tool } from "@langchain/core/tools";
+```
+
+See the [Tools](/core-concepts/tools) page for details.
+
+### Prompts
+
+Prompts templates allow you to construct messages dynamically with variable substitution and formatting.
+
+```typescript
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+```
+
+See the [Prompts](/core-concepts/prompts) page for details.
+
+### Agents
+
+Agents combine models, tools, and reasoning patterns to create autonomous systems that can plan and execute multi-step tasks.
+
+```typescript
+import { createAgent } from "langchain";
+```
+
+See the [Agents](/core-concepts/agents) page for details.
+
+## Package Structure
+
+LangChain.js is organized as a monorepo with several key packages:
+
+### @langchain/core
+
+The core package contains the fundamental abstractions and interfaces:
+- Runnable interface and base implementations
+- Message types and utilities
+- Base chat model and LLM classes
+- Tool interfaces
+- Prompt templates
+- Output parsers
+
+### langchain
+
+The main package provides high-level features built on core:
+- Agent implementations (ReAct, etc.)
+- Chains and orchestration
+- Memory systems
+- Advanced prompt engineering
+
+### Provider Packages
+
+Integration packages for specific LLM providers:
+- `@langchain/openai` - OpenAI models
+- `@langchain/anthropic` - Anthropic models
+- `@langchain/google-genai` - Google models
+- And many more...
+
+### @langchain/community
+
+Community-maintained integrations for:
+- Vector stores
+- Document loaders
+- Retrievers
+- Additional tools
+
+## Composition Patterns
+
+### Chaining with pipe()
+
+The most common pattern is to chain Runnables using the `pipe()` method:
+
+```typescript
+const chain = prompt.pipe(model).pipe(outputParser);
+
+const result = await chain.invoke({
+  topic: "artificial intelligence"
+});
+```
+
+### Parallel Execution
+
+Use `RunnableParallel` to execute multiple Runnables in parallel:
+
+```typescript
+import { RunnableParallel } from "@langchain/core/runnables";
+
+const parallel = new RunnableParallel({
+  summary: summarizeChain,
+  keywords: keywordChain,
+  sentiment: sentimentChain,
+});
+
+const result = await parallel.invoke({ text: "..." });
+// { summary: "...", keywords: [...], sentiment: "positive" }
+```
+
+### Conditional Routing
+
+Route inputs based on conditions:
+
+```typescript
+import { RunnableBranch } from "@langchain/core/runnables";
+
+const branch = RunnableBranch.from([
+  [(input) => input.length < 100, shortChain],
+  [(input) => input.length < 1000, mediumChain],
+  longChain, // default
+]);
+```
+
+## Configuration and Callbacks
+
+### RunnableConfig
+
+All Runnables accept a config object for controlling execution:
+
+```typescript
+const result = await chain.invoke(
+  { input: "..." },
+  {
+    // Callbacks for observability
+    callbacks: [myCallback],
+    
+    // Tags for organization
+    tags: ["production", "user-query"],
+    
+    // Metadata for tracking
+    metadata: { userId: "123" },
+    
+    // Control execution
+    maxConcurrency: 3,
+    signal: abortSignal,
+  }
+);
+```
+
+### Callbacks
+
+Callbacks provide hooks into the execution lifecycle:
+
+```typescript
+import { BaseCallbackHandler } from "@langchain/core/callbacks";
+
+class MyCallback extends BaseCallbackHandler {
+  name = "my_callback";
+  
+  async handleLLMStart(llm, prompts) {
+    console.log("LLM started");
+  }
+  
+  async handleLLMEnd(output) {
+    console.log("LLM finished");
+  }
+}
+```
+
+## Error Handling
+
+### Retries
+
+Add automatic retries to any Runnable:
+
+```typescript
+const chainWithRetries = chain.withRetry({
+  stopAfterAttempt: 3,
+  onFailedAttempt: (error) => {
+    console.log(`Attempt failed: ${error.message}`);
+  },
+});
+```
+
+### Fallbacks
+
+Provide fallback Runnables if the primary fails:
+
+```typescript
+const chainWithFallback = primaryChain.withFallbacks([
+  fallbackChain1,
+  fallbackChain2,
+]);
+```
+
+## Streaming
+
+Streaming is a first-class feature in LangChain.js:
+
+```typescript
+const stream = await chain.stream({ input: "Tell me a story" });
+
+for await (const chunk of stream) {
+  console.log(chunk);
+}
+```
+
+### Stream Events
+
+Get granular events from streaming execution:
+
+```typescript
+const eventStream = await chain.streamEvents(
+  { input: "..." },
+  { version: "v2" }
+);
+
+for await (const event of eventStream) {
+  if (event.event === "on_chat_model_stream") {
+    console.log(event.data.chunk.content);
+  }
+}
+```
+
+## Multi-Environment Support
+
+LangChain.js works across all JavaScript environments:
+
+- **Node.js** - Full support for all features
+- **Browser** - Client-side applications
+- **Edge Runtime** - Vercel Edge, Cloudflare Workers
+- **Deno** - Alternative runtime support
+- **React Native** - Mobile applications
+
+The framework automatically adapts to the runtime environment.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Runnables" icon="link" href="/core-concepts/runnables">
+    Learn about the Runnable interface
+  </Card>
+  <Card title="Messages" icon="message" href="/core-concepts/messages">
+    Understand message types
+  </Card>
+  <Card title="Chat Models" icon="robot" href="/core-concepts/chat-models">
+    Work with language models
+  </Card>
+  <Card title="Tools" icon="wrench" href="/core-concepts/tools">
+    Give agents abilities
+  </Card>
+</CardGroup>

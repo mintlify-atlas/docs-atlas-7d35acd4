@@ -1,0 +1,624 @@
+---
+title: Tools
+description: Creating tools to extend agent capabilities in LangChain.js
+---
+
+## Overview
+
+Tools give language models the ability to take actions and interact with external systems. In LangChain.js, tools are functions with Zod schema definitions that validate inputs and provide type safety.
+
+<Info>
+Tool classes are defined in `@langchain/core/tools`
+</Info>
+
+## Creating Tools
+
+### Using the tool() Function
+
+The simplest way to create a tool:
+
+```typescript
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+
+const weatherTool = tool(
+  async ({ location }) => {
+    // Your implementation
+    const temperature = 72;
+    return `The weather in ${location} is ${temperature}°F and sunny.`;
+  },
+  {
+    name: "get_weather",
+    description: "Get the current weather for a location",
+    schema: z.object({
+      location: z.string().describe("The city and state, e.g. San Francisco, CA"),
+    }),
+  }
+);
+```
+
+### With Multiple Parameters
+
+```typescript
+const calculatorTool = tool(
+  async ({ operation, a, b }) => {
+    const operations = {
+      add: (a: number, b: number) => a + b,
+      subtract: (a: number, b: number) => a - b,
+      multiply: (a: number, b: number) => a * b,
+      divide: (a: number, b: number) => a / b,
+    };
+    
+    const result = operations[operation](a, b);
+    return `${a} ${operation} ${b} = ${result}`;
+  },
+  {
+    name: "calculator",
+    description: "Perform basic arithmetic operations",
+    schema: z.object({
+      operation: z.enum(["add", "subtract", "multiply", "divide"])
+        .describe("The operation to perform"),
+      a: z.number().describe("First number"),
+      b: z.number().describe("Second number"),
+    }),
+  }
+);
+```
+
+### Async Operations
+
+Tools can perform async operations:
+
+```typescript
+const searchTool = tool(
+  async ({ query }) => {
+    // Call an API
+    const response = await fetch(`https://api.search.com?q=${query}`);
+    const data = await response.json();
+    return JSON.stringify(data.results);
+  },
+  {
+    name: "search",
+    description: "Search the internet for information",
+    schema: z.object({
+      query: z.string().describe("The search query"),
+    }),
+  }
+);
+```
+
+## Using Tools
+
+### With Chat Models
+
+Bind tools to models:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({ model: "gpt-4o" });
+const modelWithTools = model.bindTools([weatherTool, calculatorTool]);
+
+const response = await modelWithTools.invoke([
+  { role: "user", content: "What's the weather in San Francisco?" },
+]);
+
+if (response.tool_calls && response.tool_calls.length > 0) {
+  console.log("Tool calls:", response.tool_calls);
+  // [{ id: "call_abc", name: "get_weather", args: { location: "San Francisco, CA" } }]
+}
+```
+
+### Invoking Tools Directly
+
+You can call tools directly:
+
+```typescript
+const result = await weatherTool.invoke({
+  location: "New York, NY",
+});
+console.log(result);
+// "The weather in New York, NY is 72°F and sunny."
+```
+
+With tool call object:
+
+```typescript
+const result = await weatherTool.invoke({
+  id: "call_123",
+  name: "get_weather",
+  args: { location: "Boston, MA" },
+});
+// Returns a ToolMessage when called with tool call format
+```
+
+### With Agents
+
+```typescript
+import { createAgent } from "langchain";
+
+const agent = createAgent({
+  llm: "openai:gpt-4o",
+  tools: [weatherTool, searchTool, calculatorTool],
+});
+
+const result = await agent.invoke({
+  messages: [{ role: "user", content: "What's 25 * 17?" }],
+});
+```
+
+## Tool Schemas
+
+### Describing Parameters
+
+Use `.describe()` to help the model understand parameters:
+
+```typescript
+const searchTool = tool(
+  async ({ query, maxResults }) => {
+    // Implementation
+  },
+  {
+    name: "search",
+    description: "Search for information online",
+    schema: z.object({
+      query: z.string()
+        .describe("The search query. Be specific and include relevant keywords."),
+      maxResults: z.number()
+        .default(10)
+        .describe("Maximum number of results to return (1-100)"),
+    }),
+  }
+);
+```
+
+### Complex Schemas
+
+Nested objects and arrays:
+
+```typescript
+const bookSearchTool = tool(
+  async ({ query, filters }) => {
+    // Search implementation
+  },
+  {
+    name: "search_books",
+    description: "Search for books in the library catalog",
+    schema: z.object({
+      query: z.string().describe("Search query"),
+      filters: z.object({
+        author: z.string().optional(),
+        genre: z.array(z.string()).optional(),
+        yearRange: z.object({
+          start: z.number(),
+          end: z.number(),
+        }).optional(),
+      }).describe("Optional filters to narrow the search"),
+    }),
+  }
+);
+```
+
+### Validation
+
+Schemas automatically validate inputs:
+
+```typescript
+const emailTool = tool(
+  async ({ to, subject, body }) => {
+    // Send email
+  },
+  {
+    name: "send_email",
+    description: "Send an email",
+    schema: z.object({
+      to: z.string().email().describe("Recipient email address"),
+      subject: z.string().min(1).max(100).describe("Email subject"),
+      body: z.string().max(5000).describe("Email body"),
+    }),
+  }
+);
+
+// This will throw a validation error:
+try {
+  await emailTool.invoke({ to: "invalid-email", subject: "", body: "Hi" });
+} catch (error) {
+  console.error("Validation failed:", error);
+}
+```
+
+## Advanced Features
+
+### Response Format
+
+Tools can return structured responses:
+
+```typescript
+const analysisTool = tool(
+  async ({ text }) => {
+    const wordCount = text.split(/\s+/).length;
+    const sentiment = Math.random() > 0.5 ? "positive" : "negative";
+    
+    // Return as tuple: [content, artifact]
+    return [
+      `Analysis complete: ${wordCount} words, ${sentiment} sentiment`,
+      { wordCount, sentiment, timestamp: Date.now() },
+    ];
+  },
+  {
+    name: "analyze_text",
+    description: "Analyze text and return statistics",
+    schema: z.object({
+      text: z.string(),
+    }),
+    responseFormat: "content_and_artifact",
+  }
+);
+```
+
+### Accessing Runtime Context
+
+Tools can access runtime state:
+
+```typescript
+const personalizedTool = tool(
+  async ({ query }, runtime) => {
+    // Access state from the agent or chain
+    const { state, config } = runtime;
+    const userId = state.userId;
+    
+    return `Searching for "${query}" (user: ${userId})`;
+  },
+  {
+    name: "personalized_search",
+    description: "Search with user context",
+    schema: z.object({
+      query: z.string(),
+    }),
+  }
+);
+```
+
+### Return Direct
+
+Stop agent execution after calling this tool:
+
+```typescript
+const finalAnswerTool = tool(
+  async ({ answer }) => answer,
+  {
+    name: "final_answer",
+    description: "Provide the final answer to the user",
+    schema: z.object({
+      answer: z.string(),
+    }),
+    returnDirect: true,
+  }
+);
+```
+
+## StructuredTool Class
+
+For more control, extend `StructuredTool`:
+
+```typescript
+import { StructuredTool } from "@langchain/core/tools";
+import { z } from "zod";
+
+class WeatherTool extends StructuredTool {
+  name = "get_weather";
+  
+  description = "Get weather for a location";
+  
+  schema = z.object({
+    location: z.string().describe("City and state"),
+  });
+  
+  private apiKey: string;
+  
+  constructor(apiKey: string) {
+    super();
+    this.apiKey = apiKey;
+  }
+  
+  protected async _call({ location }: z.infer<typeof this.schema>) {
+    // Use this.apiKey to call weather API
+    const response = await fetch(
+      `https://api.weather.com?location=${location}&key=${this.apiKey}`
+    );
+    const data = await response.json();
+    return JSON.stringify(data);
+  }
+}
+
+const weatherTool = new WeatherTool(process.env.WEATHER_API_KEY!);
+```
+
+## DynamicTool Class
+
+For simple string input/output:
+
+```typescript
+import { DynamicTool } from "@langchain/core/tools";
+
+const simpleTool = new DynamicTool({
+  name: "uppercase",
+  description: "Convert text to uppercase",
+  func: async (input: string) => {
+    return input.toUpperCase();
+  },
+});
+```
+
+## Real-World Examples
+
+### Database Query Tool
+
+```typescript
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+import { Pool } from "pg";
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+const dbQueryTool = tool(
+  async ({ query }) => {
+    try {
+      const result = await pool.query(query);
+      return JSON.stringify(result.rows);
+    } catch (error) {
+      return `Database error: ${error.message}`;
+    }
+  },
+  {
+    name: "query_database",
+    description: "Execute a read-only SQL query on the database",
+    schema: z.object({
+      query: z.string().describe("SQL SELECT query to execute"),
+    }),
+  }
+);
+```
+
+### File System Tool
+
+```typescript
+import fs from "fs/promises";
+
+const readFileTool = tool(
+  async ({ path }) => {
+    try {
+      const content = await fs.readFile(path, "utf-8");
+      return content;
+    } catch (error) {
+      return `Error reading file: ${error.message}`;
+    }
+  },
+  {
+    name: "read_file",
+    description: "Read the contents of a file",
+    schema: z.object({
+      path: z.string().describe("Path to the file to read"),
+    }),
+  }
+);
+```
+
+### API Integration Tool
+
+```typescript
+const githubTool = tool(
+  async ({ owner, repo }) => {
+    const response = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}`,
+      {
+        headers: {
+          Authorization: `token ${process.env.GITHUB_TOKEN}`,
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      return `Error: ${response.statusText}`;
+    }
+    
+    const data = await response.json();
+    return JSON.stringify({
+      name: data.name,
+      description: data.description,
+      stars: data.stargazers_count,
+      forks: data.forks_count,
+    });
+  },
+  {
+    name: "get_github_repo",
+    description: "Get information about a GitHub repository",
+    schema: z.object({
+      owner: z.string().describe("Repository owner"),
+      repo: z.string().describe("Repository name"),
+    }),
+  }
+);
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Write Clear Descriptions">
+    Tool descriptions should explain:
+    - What the tool does
+    - When to use it
+    - What it returns
+    
+    ```typescript
+    // ✓ Good
+    description: "Search for current weather information for any city. Returns temperature, conditions, and forecast. Use for weather-related queries."
+    
+    // ✗ Avoid
+    description: "Gets weather"
+    ```
+  </Accordion>
+  
+  <Accordion title="Describe All Parameters">
+    Every parameter should have a `.describe()` call:
+    
+    ```typescript
+    schema: z.object({
+      city: z.string()
+        .describe("The city name, e.g., 'San Francisco'"),
+      units: z.enum(["celsius", "fahrenheit"])
+        .default("fahrenheit")
+        .describe("Temperature units to use"),
+    })
+    ```
+  </Accordion>
+  
+  <Accordion title="Handle Errors Gracefully">
+    Return helpful error messages instead of throwing:
+    
+    ```typescript
+    async ({ location }) => {
+      try {
+        return await getWeather(location);
+      } catch (error) {
+        return `Unable to get weather for ${location}. Please verify the location name and try again.`;
+      }
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Keep Tools Focused">
+    Each tool should do one thing well:
+    
+    ```typescript
+    // ✓ Good - Separate tools
+    const searchTool = tool(...);
+    const saveTool = tool(...);
+    
+    // ✗ Avoid - One tool doing too much
+    const searchAndSaveTool = tool(...);
+    ```
+  </Accordion>
+  
+  <Accordion title="Return Structured Data">
+    For complex data, return JSON:
+    
+    ```typescript
+    async ({ query }) => {
+      const results = await search(query);
+      return JSON.stringify(results, null, 2);
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Type Signatures
+
+```typescript
+function tool<T extends z.ZodObject<any>>(
+  func: (input: z.infer<T>, runtime?: ToolRuntime) => Promise<string> | string,
+  config: {
+    name: string;
+    description: string;
+    schema: T;
+    responseFormat?: "content" | "content_and_artifact";
+    returnDirect?: boolean;
+  }
+): DynamicStructuredTool<T>;
+
+abstract class StructuredTool<
+  SchemaT = z.ZodObject<any>,
+  SchemaOutputT = z.infer<SchemaT>,
+> {
+  abstract name: string;
+  abstract description: string;
+  abstract schema: SchemaT;
+  
+  protected abstract _call(
+    arg: SchemaOutputT,
+    runManager?: CallbackManagerForToolRun,
+    config?: RunnableConfig
+  ): Promise<string>;
+  
+  async invoke(
+    input: z.input<SchemaT> | ToolCall,
+    config?: RunnableConfig
+  ): Promise<string | ToolMessage>;
+}
+```
+
+## Common Patterns
+
+### Rate-Limited Tool
+
+```typescript
+import pLimit from "p-limit";
+
+const limit = pLimit(1); // 1 request at a time
+
+const rateLimitedTool = tool(
+  async ({ query }) => {
+    return limit(async () => {
+      const result = await expensiveAPICall(query);
+      return result;
+    });
+  },
+  { /* config */ }
+);
+```
+
+### Cached Tool
+
+```typescript
+const cache = new Map();
+
+const cachedTool = tool(
+  async ({ query }) => {
+    if (cache.has(query)) {
+      return cache.get(query);
+    }
+    
+    const result = await expensiveOperation(query);
+    cache.set(query, result);
+    return result;
+  },
+  { /* config */ }
+);
+```
+
+### Authenticated Tool
+
+```typescript
+function createAuthenticatedTool(apiKey: string) {
+  return tool(
+    async ({ query }) => {
+      const response = await fetch(`https://api.example.com?q=${query}`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      return await response.text();
+    },
+    {
+      name: "authenticated_search",
+      description: "Search with authentication",
+      schema: z.object({ query: z.string() }),
+    }
+  );
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Agents" icon="brain" href="/core-concepts/agents">
+    Use tools with agents
+  </Card>
+  <Card title="Chat Models" icon="robot" href="/core-concepts/chat-models">
+    Bind tools to models
+  </Card>
+  <Card title="Messages" icon="message" href="/core-concepts/messages">
+    Understand tool messages
+  </Card>
+  <Card title="Runnables" icon="link" href="/core-concepts/runnables">
+    Compose tools with other components
+  </Card>
+</CardGroup>

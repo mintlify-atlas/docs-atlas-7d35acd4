@@ -1,0 +1,808 @@
+---
+title: Callbacks and Tracing
+description: Learn how to monitor, debug, and trace LangChain.js applications with callbacks and observability tools
+---
+
+## Introduction
+
+Callbacks and tracing enable you to:
+
+- **Monitor execution** - Track what's happening in your LLM applications
+- **Debug issues** - Identify problems and bottlenecks
+- **Measure performance** - Collect metrics on latency and costs
+- **Log interactions** - Record all LLM calls and responses
+- **Integrate with observability platforms** - Connect to LangSmith, Datadog, etc.
+
+LangChain.js provides a comprehensive callback system for observability.
+
+## Quick Start
+
+Add a simple callback to log LLM calls:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({ model: "gpt-4o" });
+
+const response = await model.invoke(
+  "What is 2+2?",
+  {
+    callbacks: [
+      {
+        handleLLMStart: async (llm, prompts) => {
+          console.log("LLM started with prompts:", prompts);
+        },
+        handleLLMEnd: async (output) => {
+          console.log("LLM finished:", output);
+        },
+        handleLLMError: async (err) => {
+          console.error("LLM error:", err);
+        }
+      }
+    ]
+  }
+);
+```
+
+## Callback Types
+
+### LLM Callbacks
+
+Track language model operations:
+
+```typescript
+import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
+
+class CustomLLMCallback extends BaseCallbackHandler {
+  name = "CustomLLMCallback";
+  
+  async handleLLMStart(
+    llm: any,
+    prompts: string[],
+    runId: string
+  ): Promise<void> {
+    console.log("LLM Start", { runId, prompts });
+  }
+  
+  async handleLLMNewToken(
+    token: string,
+    idx: { prompt: number; completion: number },
+    runId: string
+  ): Promise<void> {
+    process.stdout.write(token);
+  }
+  
+  async handleLLMEnd(
+    output: any,
+    runId: string
+  ): Promise<void> {
+    console.log("\nLLM End", { runId });
+    console.log("Token usage:", output.llmOutput?.tokenUsage);
+  }
+  
+  async handleLLMError(
+    err: Error,
+    runId: string
+  ): Promise<void> {
+    console.error("LLM Error", { runId, error: err.message });
+  }
+}
+
+const model = new ChatOpenAI({ model: "gpt-4o" });
+
+await model.invoke(
+  "Tell me a joke",
+  { callbacks: [new CustomLLMCallback()] }
+);
+```
+
+### Chain Callbacks
+
+Monitor chain execution:
+
+```typescript
+import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
+
+class ChainCallback extends BaseCallbackHandler {
+  name = "ChainCallback";
+  
+  async handleChainStart(
+    chain: any,
+    inputs: any,
+    runId: string
+  ): Promise<void> {
+    console.log("Chain started:", chain.name || chain.id);
+    console.log("Inputs:", inputs);
+  }
+  
+  async handleChainEnd(
+    outputs: any,
+    runId: string
+  ): Promise<void> {
+    console.log("Chain ended");
+    console.log("Outputs:", outputs);
+  }
+  
+  async handleChainError(
+    err: Error,
+    runId: string
+  ): Promise<void> {
+    console.error("Chain error:", err.message);
+  }
+}
+
+import { RunnableSequence } from "@langchain/core/runnables";
+import { PromptTemplate } from "@langchain/core/prompts";
+
+const chain = RunnableSequence.from([
+  PromptTemplate.fromTemplate("Explain {topic}"),
+  model
+]);
+
+await chain.invoke(
+  { topic: "quantum computing" },
+  { callbacks: [new ChainCallback()] }
+);
+```
+
+### Tool Callbacks
+
+Track tool execution:
+
+```typescript
+import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
+
+class ToolCallback extends BaseCallbackHandler {
+  name = "ToolCallback";
+  
+  async handleToolStart(
+    tool: any,
+    input: string,
+    runId: string
+  ): Promise<void> {
+    console.log(`Tool "${tool.name}" started`);
+    console.log("Input:", input);
+  }
+  
+  async handleToolEnd(
+    output: string,
+    runId: string
+  ): Promise<void> {
+    console.log("Tool finished");
+    console.log("Output:", output);
+  }
+  
+  async handleToolError(
+    err: Error,
+    runId: string
+  ): Promise<void> {
+    console.error("Tool error:", err.message);
+  }
+}
+
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+
+const searchTool = tool(
+  async ({ query }) => {
+    return `Search results for: ${query}`;
+  },
+  {
+    name: "search",
+    description: "Search the web",
+    schema: z.object({ query: z.string() })
+  }
+);
+
+await searchTool.invoke(
+  { query: "LangChain" },
+  { callbacks: [new ToolCallback()] }
+);
+```
+
+### Retriever Callbacks
+
+Monitor document retrieval:
+
+```typescript
+import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
+
+class RetrieverCallback extends BaseCallbackHandler {
+  name = "RetrieverCallback";
+  
+  async handleRetrieverStart(
+    retriever: any,
+    query: string,
+    runId: string
+  ): Promise<void> {
+    console.log("Retriever started");
+    console.log("Query:", query);
+  }
+  
+  async handleRetrieverEnd(
+    documents: any[],
+    runId: string
+  ): Promise<void> {
+    console.log(`Retrieved ${documents.length} documents`);
+    documents.forEach((doc, i) => {
+      console.log(`Doc ${i}:`, doc.pageContent.substring(0, 100));
+    });
+  }
+  
+  async handleRetrieverError(
+    err: Error,
+    runId: string
+  ): Promise<void> {
+    console.error("Retriever error:", err.message);
+  }
+}
+```
+
+## Built-in Callback Handlers
+
+### Console Callback Handler
+
+Log everything to console:
+
+```typescript
+import { ConsoleCallbackHandler } from "@langchain/core/tracers/console";
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({ model: "gpt-4o" });
+
+await model.invoke(
+  "Tell me about TypeScript",
+  { callbacks: [new ConsoleCallbackHandler()] }
+);
+// Logs all events to console with detailed information
+```
+
+### LangSmith Tracer
+
+Trace to LangSmith platform:
+
+```typescript
+import { Client } from "langsmith";
+import { LangChainTracer } from "@langchain/core/tracers/tracer_langchain";
+import { ChatOpenAI } from "@langchain/openai";
+
+const client = new Client({
+  apiKey: process.env.LANGSMITH_API_KEY
+});
+
+const tracer = new LangChainTracer({
+  projectName: "my-project",
+  client
+});
+
+const model = new ChatOpenAI({ model: "gpt-4o" });
+
+await model.invoke(
+  "What is LangChain?",
+  { callbacks: [tracer] }
+);
+// Traces appear in LangSmith dashboard
+```
+
+### File Callback Handler
+
+Log to file:
+
+```typescript
+import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
+import fs from "fs";
+
+class FileCallbackHandler extends BaseCallbackHandler {
+  name = "FileCallbackHandler";
+  private stream: fs.WriteStream;
+  
+  constructor(filepath: string) {
+    super();
+    this.stream = fs.createWriteStream(filepath, { flags: "a" });
+  }
+  
+  private log(event: string, data: any): void {
+    const entry = {
+      timestamp: new Date().toISOString(),
+      event,
+      data
+    };
+    this.stream.write(JSON.stringify(entry) + "\n");
+  }
+  
+  async handleLLMStart(llm: any, prompts: string[]): Promise<void> {
+    this.log("llm_start", { prompts });
+  }
+  
+  async handleLLMEnd(output: any): Promise<void> {
+    this.log("llm_end", { output });
+  }
+  
+  close(): void {
+    this.stream.end();
+  }
+}
+
+const fileHandler = new FileCallbackHandler("./logs/llm-calls.jsonl");
+
+try {
+  await model.invoke("Query", { callbacks: [fileHandler] });
+} finally {
+  fileHandler.close();
+}
+```
+
+## Callback Configuration
+
+### Constructor-level Callbacks
+
+Set callbacks at initialization:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { ConsoleCallbackHandler } from "@langchain/core/tracers/console";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o",
+  callbacks: [new ConsoleCallbackHandler()]
+});
+
+// All calls will use these callbacks
+await model.invoke("First query");
+await model.invoke("Second query");
+```
+
+### Request-level Callbacks
+
+Set callbacks per request:
+
+```typescript
+const model = new ChatOpenAI({ model: "gpt-4o" });
+
+// Only this call uses the callback
+await model.invoke(
+  "Query",
+  { callbacks: [new ConsoleCallbackHandler()] }
+);
+
+// This call has no callbacks
+await model.invoke("Another query");
+```
+
+### Callback Inheritance
+
+Callbacks propagate through chains:
+
+```typescript
+import { RunnableSequence } from "@langchain/core/runnables";
+
+const chain = RunnableSequence.from([
+  prompt,
+  model,
+  parser
+]);
+
+// Callback applies to entire chain
+await chain.invoke(
+  input,
+  { callbacks: [new ConsoleCallbackHandler()] }
+);
+// Logs events from prompt, model, and parser
+```
+
+## Performance Monitoring
+
+### Latency Tracking
+
+```typescript
+import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
+
+class LatencyTracker extends BaseCallbackHandler {
+  name = "LatencyTracker";
+  private startTimes = new Map<string, number>();
+  
+  async handleLLMStart(
+    llm: any,
+    prompts: string[],
+    runId: string
+  ): Promise<void> {
+    this.startTimes.set(runId, Date.now());
+  }
+  
+  async handleLLMEnd(
+    output: any,
+    runId: string
+  ): Promise<void> {
+    const startTime = this.startTimes.get(runId);
+    if (startTime) {
+      const latency = Date.now() - startTime;
+      console.log(`LLM call took ${latency}ms`);
+      this.startTimes.delete(runId);
+      
+      // Send to monitoring service
+      await this.reportMetric("llm_latency", latency);
+    }
+  }
+  
+  private async reportMetric(
+    metric: string,
+    value: number
+  ): Promise<void> {
+    // Send to your monitoring service
+    // await metrics.track(metric, value);
+  }
+}
+```
+
+### Token Usage Tracking
+
+```typescript
+import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
+
+class TokenUsageTracker extends BaseCallbackHandler {
+  name = "TokenUsageTracker";
+  private totalTokens = 0;
+  private totalCost = 0;
+  
+  async handleLLMEnd(
+    output: any,
+    runId: string
+  ): Promise<void> {
+    const usage = output.llmOutput?.tokenUsage;
+    if (usage) {
+      this.totalTokens += usage.totalTokens || 0;
+      
+      // Calculate cost (example rates)
+      const inputCost = (usage.promptTokens || 0) * 0.00001;
+      const outputCost = (usage.completionTokens || 0) * 0.00003;
+      const callCost = inputCost + outputCost;
+      
+      this.totalCost += callCost;
+      
+      console.log({
+        callTokens: usage.totalTokens,
+        callCost: callCost.toFixed(6),
+        totalTokens: this.totalTokens,
+        totalCost: this.totalCost.toFixed(6)
+      });
+    }
+  }
+  
+  getStats() {
+    return {
+      totalTokens: this.totalTokens,
+      totalCost: this.totalCost
+    };
+  }
+}
+
+const tracker = new TokenUsageTracker();
+
+await model.invoke("Query 1", { callbacks: [tracker] });
+await model.invoke("Query 2", { callbacks: [tracker] });
+
+console.log("Final stats:", tracker.getStats());
+```
+
+### Error Rate Monitoring
+
+```typescript
+import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
+
+class ErrorRateMonitor extends BaseCallbackHandler {
+  name = "ErrorRateMonitor";
+  private successes = 0;
+  private failures = 0;
+  
+  async handleLLMEnd(): Promise<void> {
+    this.successes++;
+    this.reportMetrics();
+  }
+  
+  async handleLLMError(err: Error): Promise<void> {
+    this.failures++;
+    console.error("LLM error:", err.message);
+    this.reportMetrics();
+  }
+  
+  private reportMetrics(): void {
+    const total = this.successes + this.failures;
+    const errorRate = (this.failures / total) * 100;
+    
+    console.log({
+      successes: this.successes,
+      failures: this.failures,
+      errorRate: `${errorRate.toFixed(2)}%`
+    });
+    
+    if (errorRate > 10) {
+      console.warn("High error rate detected!");
+    }
+  }
+}
+```
+
+## Debugging with Callbacks
+
+### Verbose Mode
+
+Enable detailed logging:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o",
+  verbose: true  // Enables debug logging
+});
+
+await model.invoke("Test query");
+// Logs detailed information about the execution
+```
+
+### Step-by-Step Debugging
+
+```typescript
+import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
+
+class DebugCallback extends BaseCallbackHandler {
+  name = "DebugCallback";
+  private indent = 0;
+  
+  private log(message: string): void {
+    console.log("  ".repeat(this.indent) + message);
+  }
+  
+  async handleChainStart(
+    chain: any,
+    inputs: any
+  ): Promise<void> {
+    this.log(`▶ Chain: ${chain.name || "unnamed"}`);
+    this.log(`  Inputs: ${JSON.stringify(inputs)}`);
+    this.indent++;
+  }
+  
+  async handleChainEnd(outputs: any): Promise<void> {
+    this.indent--;
+    this.log(`✓ Chain complete`);
+    this.log(`  Outputs: ${JSON.stringify(outputs)}`);
+  }
+  
+  async handleLLMStart(
+    llm: any,
+    prompts: string[]
+  ): Promise<void> {
+    this.log(`▶ LLM: ${llm.name || "unnamed"}`);
+    this.log(`  Prompts: ${prompts.length}`);
+    this.indent++;
+  }
+  
+  async handleLLMEnd(output: any): Promise<void> {
+    this.indent--;
+    this.log(`✓ LLM complete`);
+  }
+  
+  async handleToolStart(
+    tool: any,
+    input: string
+  ): Promise<void> {
+    this.log(`▶ Tool: ${tool.name}`);
+    this.log(`  Input: ${input}`);
+    this.indent++;
+  }
+  
+  async handleToolEnd(output: string): Promise<void> {
+    this.indent--;
+    this.log(`✓ Tool complete`);
+    this.log(`  Output: ${output.substring(0, 100)}...`);
+  }
+}
+```
+
+## Integration with Observability Platforms
+
+### LangSmith
+
+Comprehensive LangChain observability:
+
+```typescript
+import { Client } from "langsmith";
+import { LangChainTracer } from "@langchain/core/tracers/tracer_langchain";
+
+// Set environment variables
+process.env.LANGCHAIN_TRACING_V2 = "true";
+process.env.LANGCHAIN_API_KEY = "your-api-key";
+process.env.LANGCHAIN_PROJECT = "my-project";
+
+const client = new Client();
+
+const tracer = new LangChainTracer({
+  projectName: "my-project",
+  client,
+  // Optional: Add tags and metadata
+  tags: ["production", "v1.0"],
+  metadata: { user: "user-123" }
+});
+
+await model.invoke(
+  "Query",
+  { callbacks: [tracer] }
+);
+```
+
+### Datadog
+
+Send metrics to Datadog:
+
+```typescript
+import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
+import { StatsD } from "node-dogstatsd";
+
+class DatadogCallback extends BaseCallbackHandler {
+  name = "DatadogCallback";
+  private statsd: StatsD;
+  
+  constructor() {
+    super();
+    this.statsd = new StatsD();
+  }
+  
+  async handleLLMEnd(
+    output: any,
+    runId: string
+  ): Promise<void> {
+    const usage = output.llmOutput?.tokenUsage;
+    if (usage) {
+      this.statsd.gauge("llm.tokens.total", usage.totalTokens);
+      this.statsd.gauge("llm.tokens.prompt", usage.promptTokens);
+      this.statsd.gauge("llm.tokens.completion", usage.completionTokens);
+    }
+    
+    this.statsd.increment("llm.calls.success");
+  }
+  
+  async handleLLMError(err: Error): Promise<void> {
+    this.statsd.increment("llm.calls.error");
+  }
+}
+```
+
+### Custom Webhook
+
+Send events to custom endpoints:
+
+```typescript
+import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
+
+class WebhookCallback extends BaseCallbackHandler {
+  name = "WebhookCallback";
+  
+  constructor(private webhookUrl: string) {
+    super();
+  }
+  
+  private async sendEvent(
+    eventType: string,
+    data: any
+  ): Promise<void> {
+    try {
+      await fetch(this.webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventType,
+          timestamp: new Date().toISOString(),
+          data
+        })
+      });
+    } catch (error) {
+      console.error("Webhook error:", error);
+    }
+  }
+  
+  async handleLLMEnd(output: any): Promise<void> {
+    await this.sendEvent("llm_end", {
+      tokens: output.llmOutput?.tokenUsage,
+      content: output.generations[0]?.[0]?.text
+    });
+  }
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Async Handlers">
+    Prevent blocking with async operations:
+
+    ```typescript
+    class AsyncCallback extends BaseCallbackHandler {
+      async handleLLMEnd(output: any): Promise<void> {
+        // Non-blocking - runs in background
+        await this.logToDatabase(output);
+      }
+      
+      private async logToDatabase(output: any): Promise<void> {
+        // Async database operation
+        await db.insert({ output });
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Handle Callback Errors">
+    Don't let callback errors crash your app:
+
+    ```typescript
+    class SafeCallback extends BaseCallbackHandler {
+      raiseError = false;  // Don't throw callback errors
+      
+      async handleLLMEnd(output: any): Promise<void> {
+        try {
+          await this.riskyOperation(output);
+        } catch (error) {
+          // Log but don't throw
+          console.error("Callback error:", error);
+        }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Sample High-Volume Events">
+    Reduce overhead in production:
+
+    ```typescript
+    class SamplingCallback extends BaseCallbackHandler {
+      private sampleRate = 0.1;  // 10%
+      
+      async handleLLMStart(
+        llm: any,
+        prompts: string[]
+      ): Promise<void> {
+        if (Math.random() < this.sampleRate) {
+          await this.logEvent({ llm, prompts });
+        }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Add Context to Logs">
+    Include useful metadata:
+
+    ```typescript
+    const model = new ChatOpenAI({ model: "gpt-4o" });
+    
+    await model.invoke(
+      "Query",
+      {
+        callbacks: [tracer],
+        tags: ["production", "user-query"],
+        metadata: {
+          userId: "user-123",
+          sessionId: "session-456",
+          feature: "chat"
+        }
+      }
+    );
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Building Agents" icon="robot" href="/guides/building-agents">
+    Monitor agent execution
+  </Card>
+  <Card title="Streaming" icon="wave-pulse" href="/guides/streaming">
+    Add callbacks to streaming responses
+  </Card>
+  <Card title="Creating Tools" icon="wrench" href="/guides/creating-tools">
+    Track tool execution
+  </Card>
+  <Card title="Retrieval" icon="database" href="/guides/retrieval">
+    Monitor document retrieval
+  </Card>
+</CardGroup>

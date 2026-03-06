@@ -1,0 +1,267 @@
+---
+title: "Output Parsers"
+description: "Parse and transform language model outputs into structured data"
+---
+
+## Overview
+
+Output parsers transform raw language model outputs into structured, typed data. They handle parsing, validation, and error recovery.
+
+## StringOutputParser
+
+Extracts string content from AI messages.
+
+**Import:**
+```typescript
+import { StringOutputParser } from "@langchain/core/output_parsers";
+```
+
+**Example:**
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+
+const model = new ChatOpenAI();
+const parser = new StringOutputParser();
+
+const chain = model.pipe(parser);
+
+const result = await chain.invoke([["human", "Tell me a joke"]]);
+// Returns: "Why did the chicken cross the road?..."
+```
+
+## StructuredOutputParser
+
+Parse output into a structured format using a Zod schema.
+
+```typescript
+import { StructuredOutputParser } from "@langchain/core/output_parsers";
+import { z } from "zod";
+
+const parser = StructuredOutputParser.fromZodSchema(
+  z.object({
+    name: z.string().describe("Person's name"),
+    age: z.number().describe("Person's age"),
+    email: z.string().email().describe("Email address")
+  })
+);
+
+const formatInstructions = parser.getFormatInstructions();
+
+const prompt = ChatPromptTemplate.fromTemplate(
+  "Extract person info from the text.\n{format_instructions}\n{text}"
+);
+
+const chain = prompt.pipe(model).pipe(parser);
+
+const result = await chain.invoke({
+  text: "John Doe is 30 and can be reached at john@example.com",
+  format_instructions: formatInstructions
+});
+// { name: "John Doe", age: 30, email: "john@example.com" }
+```
+
+## JsonOutputParser
+
+Parse JSON output from models.
+
+```typescript
+import { JsonOutputParser } from "@langchain/core/output_parsers";
+
+const parser = new JsonOutputParser();
+
+const prompt = ChatPromptTemplate.fromTemplate(
+  "Return a JSON object with these fields: name, age, city.\n{input}"
+);
+
+const chain = prompt.pipe(model).pipe(parser);
+
+const result = await chain.invoke({
+  input: "Alice is 25 and lives in Paris"
+});
+// { name: "Alice", age: 25, city: "Paris" }
+```
+
+## CommaSeparatedListOutputParser
+
+Parse comma-separated values into an array.
+
+```typescript
+import { CommaSeparatedListOutputParser } from "@langchain/core/output_parsers";
+
+const parser = new CommaSeparatedListOutputParser();
+
+const prompt = ChatPromptTemplate.fromTemplate(
+  "List 5 {topic}. Return as comma-separated values."
+);
+
+const chain = prompt.pipe(model).pipe(parser);
+
+const result = await chain.invoke({ topic: "colors" });
+// ["red", "blue", "green", "yellow", "purple"]
+```
+
+## Output Fixing Parser
+
+Automatically fix malformed output using another LLM call.
+
+```typescript
+import { OutputFixingParser } from "langchain/output_parsers";
+import { StructuredOutputParser } from "@langchain/core/output_parsers";
+
+const baseParser = StructuredOutputParser.fromZodSchema(
+  z.object({
+    name: z.string(),
+    age: z.number()
+  })
+);
+
+const fixingParser = OutputFixingParser.fromLLM(model, baseParser);
+
+// Even if model returns malformed JSON, fixing parser will correct it
+const result = await fixingParser.parse(
+  '{name: "Alice" age: 25}' // Missing comma
+);
+// { name: "Alice", age: 25 }
+```
+
+## Custom Output Parser
+
+Create custom parsers for specific needs:
+
+```typescript
+import { BaseOutputParser } from "@langchain/core/output_parsers";
+
+class CustomParser extends BaseOutputParser<string[]> {
+  lc_namespace = ["custom", "parsers"];
+
+  async parse(text: string): Promise<string[]> {
+    return text
+      .split("\n")
+      .filter(line => line.trim().length > 0)
+      .map(line => line.trim());
+  }
+
+  getFormatInstructions(): string {
+    return "Return each item on a new line.";
+  }
+}
+
+const parser = new CustomParser();
+```
+
+## Using with Structured Output
+
+Modern chat models support native structured output, which is more reliable:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { z } from "zod";
+
+const model = new ChatOpenAI();
+
+const schema = z.object({
+  name: z.string(),
+  age: z.number(),
+  hobbies: z.array(z.string())
+});
+
+const structuredModel = model.withStructuredOutput(schema);
+
+const result = await structuredModel.invoke([
+  ["human", "Tell me about Alice who is 25 and likes reading and hiking"]
+]);
+// Typed result matching the schema
+```
+
+## Format Instructions
+
+Most parsers provide format instructions to include in prompts:
+
+```typescript
+const parser = StructuredOutputParser.fromZodSchema(schema);
+const instructions = parser.getFormatInstructions();
+
+const prompt = ChatPromptTemplate.fromTemplate(
+  "Extract information:\n{format_instructions}\n{input}"
+);
+
+const chain = prompt.pipe(model).pipe(parser);
+```
+
+## Error Handling
+
+```typescript
+import { OutputParserException } from "@langchain/core/output_parsers";
+
+try {
+  const result = await parser.parse(modelOutput);
+} catch (error) {
+  if (error instanceof OutputParserException) {
+    console.error("Failed to parse output:", error.message);
+    // Handle parsing error
+  }
+}
+```
+
+## Parser Methods
+
+<ParamField path="parse" type="method">
+  Parse the output string into structured format
+  
+  ```typescript
+  async parse(text: string): Promise<T>
+  ```
+</ParamField>
+
+<ParamField path="getFormatInstructions" type="method">
+  Get instructions to include in the prompt
+  
+  ```typescript
+  getFormatInstructions(): string
+  ```
+</ParamField>
+
+<ParamField path="parseResult" type="method">
+  Parse from a chat generation result
+  
+  ```typescript
+  async parseResult(generations: ChatGeneration[]): Promise<T>
+  ```
+</ParamField>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use native structured output when possible">
+    Modern models support `withStructuredOutput` which is more reliable:
+    ```typescript
+    const structured = model.withStructuredOutput(schema);
+    ```
+  </Accordion>
+  
+  <Accordion title="Include format instructions in prompts">
+    Always include the parser's format instructions:
+    ```typescript
+    const instructions = parser.getFormatInstructions();
+    ```
+  </Accordion>
+  
+  <Accordion title="Validate schemas with Zod">
+    Use Zod for runtime type safety:
+    ```typescript
+    const schema = z.object({ ... }).strict();
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Structured Output" href="/guides/structured-output">
+    Guide to structured output
+  </Card>
+  <Card title="Prompts" href="/api/core/prompts">
+    Using parsers with prompts
+  </Card>
+</CardGroup>

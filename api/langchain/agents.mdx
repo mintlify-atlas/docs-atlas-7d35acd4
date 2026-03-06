@@ -1,0 +1,267 @@
+---
+title: Agents
+description: API reference for creating and managing ReAct agents with tools and middleware
+---
+
+The `langchain` package provides a powerful agent system based on the ReAct (Reasoning + Acting) pattern. Agents combine language models with tools and middleware to create systems that can reason about tasks, decide which tools to use, and iteratively work towards solutions.
+
+## Core Functions
+
+### createAgent
+
+Creates a production-ready ReAct agent that combines language models with tools and middleware.
+
+```typescript
+import { createAgent, tool } from "langchain";
+import { z } from "zod";
+
+const search = tool(
+  ({ query }) => `Results for: ${query}`,
+  {
+    name: "search",
+    description: "Search for information",
+    schema: z.object({
+      query: z.string().describe("The search query"),
+    })
+  }
+);
+
+const agent = createAgent({
+  model: "openai:gpt-4o",
+  tools: [search],
+});
+
+const result = await agent.invoke({
+  messages: [{ role: "user", content: "Search for ReAct agents" }],
+});
+```
+
+**Parameters:**
+
+<ParamField path="options.model" type="string">
+  The language model as a string identifier (e.g., `"openai:gpt-4o"`, `"anthropic:claude-3-opus-20240229"`). See [Models](/oss/javascript/langchain/models) for more details.
+</ParamField>
+
+<ParamField path="options.llm" type="BaseChatModel">
+  The language model as an instance of a chat model. Use this for full control over model configuration.
+</ParamField>
+
+<ParamField path="options.tools" type="Array<Tool> | ToolNode">
+  Array of tools created with the `tool` function, or a configured `ToolNode` for custom error handling.
+</ParamField>
+
+<ParamField path="options.prompt" type="string | SystemMessage | Function">
+  System instructions that shape how the agent approaches tasks. Can be:
+  - String for simple instructions
+  - SystemMessage for structured prompts
+  - Function for dynamic prompts based on state
+</ParamField>
+
+<ParamField path="options.responseFormat" type="ZodSchema">
+  Zod schema for structured output. When provided, the agent will return typed responses that conform to the schema.
+</ParamField>
+
+<ParamField path="options.stateSchema" type="StateDefinitionInit">
+  Custom state schema for memory. Allows the agent to remember information across interactions.
+</ParamField>
+
+<ParamField path="options.middleware" type="AgentMiddleware[]">
+  Array of middleware for extending agent behavior. See [Middleware](/oss/javascript/langchain/middleware) for available options.
+</ParamField>
+
+**Returns:** `ReactAgent` - An agent instance with `invoke` and `stream` methods.
+
+**Source:** `libs/langchain/src/agents/index.ts:168`
+
+---
+
+### createMiddleware
+
+Creates custom middleware for extending agent behavior.
+
+```typescript
+import { createMiddleware } from "langchain";
+
+const customMiddleware = createMiddleware({
+  beforeModelCall: async (state, runtime) => {
+    // Add pre-processing logic
+    return state;
+  },
+  afterModelCall: async (state, runtime) => {
+    // Add post-processing logic
+    return state;
+  },
+});
+
+const agent = createAgent({
+  model: "openai:gpt-4o",
+  tools: [search],
+  middleware: [customMiddleware],
+});
+```
+
+**Source:** `libs/langchain/src/agents/middleware.ts`
+
+---
+
+## Examples
+
+### Basic Agent with Tools
+
+```typescript
+import { createAgent, tool } from "langchain";
+import { z } from "zod";
+
+const search = tool(
+  ({ query }) => `Results for: ${query}`,
+  {
+    name: "search",
+    description: "Search for information",
+    schema: z.object({
+      query: z.string().describe("The search query"),
+    })
+  }
+);
+
+const agent = createAgent({
+  model: "openai:gpt-4o",
+  tools: [search],
+});
+
+const result = await agent.invoke({
+  messages: [{ role: "user", content: "Search for ReAct agents" }],
+});
+```
+
+### Structured Output
+
+```typescript
+import { createAgent } from "langchain";
+import { z } from "zod";
+
+const ContactInfo = z.object({
+  name: z.string(),
+  email: z.string(),
+  phone: z.string(),
+});
+
+const agent = createAgent({
+  model: "openai:gpt-4o",
+  tools: [],
+  responseFormat: ContactInfo,
+});
+
+const result = await agent.invoke({
+  messages: [{
+    role: "user",
+    content: "Extract: John Doe, john@example.com, (555) 123-4567"
+  }],
+});
+
+console.log(result.structuredResponse);
+// { name: 'John Doe', email: 'john@example.com', phone: '(555) 123-4567' }
+```
+
+### Streaming Responses
+
+```typescript
+const stream = await agent.stream(
+  { messages: [{ role: "user", content: "What's the weather?" }] },
+  { streamMode: "values" }
+);
+
+for await (const chunk of stream) {
+  console.log(chunk);
+}
+```
+
+### With Custom State Schema
+
+```typescript
+import { createAgent } from "langchain";
+import { StateSchema, ReducedValue } from "@langchain/langgraph";
+import { z } from "zod";
+
+const AgentState = new StateSchema({
+  userId: z.string(),
+  count: z.number().default(0),
+  history: new ReducedValue(
+    z.array(z.string()).default(() => []),
+    { inputSchema: z.string(), reducer: (c, n) => [...c, n] }
+  ),
+});
+
+const agent = createAgent({
+  model: "openai:gpt-4o",
+  tools: [searchTool],
+  stateSchema: AgentState,
+});
+```
+
+---
+
+## Type Exports
+
+### ReactAgent
+
+The agent instance returned by `createAgent`. Provides methods for invoking and streaming.
+
+**Methods:**
+- `invoke(input, options?)` - Single invocation
+- `stream(input, options?)` - Streaming invocation
+
+### AgentMiddleware
+
+Type definition for agent middleware. See [Middleware](/oss/javascript/langchain/middleware) for details.
+
+### Runtime
+
+The agent runtime context available in middleware and dynamic functions.
+
+---
+
+## Advanced Features
+
+### Response Formats
+
+Agents support multiple response format strategies:
+
+- **Zod Schema**: Type-safe structured output
+- **JSON Schema**: For broader compatibility
+- **Tool Strategy**: Use tools to generate structured responses
+- **Provider Strategy**: Provider-specific structured output
+
+### State Management
+
+Extend the state schema to add memory and context:
+
+```typescript
+const AgentState = new StateSchema({
+  userId: z.string(),
+  sessionData: z.record(z.unknown()).default(() => ({})),
+});
+```
+
+### Error Handling
+
+Agents provide comprehensive error handling:
+
+```typescript
+import { ToolCallLimitExceededError } from "langchain";
+
+try {
+  await agent.invoke({ messages });
+} catch (error) {
+  if (error instanceof ToolCallLimitExceededError) {
+    console.log("Tool call limit exceeded");
+  }
+}
+```
+
+---
+
+## Related
+
+- [Middleware](/oss/javascript/langchain/middleware) - Built-in middleware for agents
+- [Models](/oss/javascript/langchain/models) - Chat model initialization
+- [Tools](/oss/javascript/core/tools) - Creating tools for agents

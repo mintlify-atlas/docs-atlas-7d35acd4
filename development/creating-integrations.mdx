@@ -1,0 +1,350 @@
+---
+title: Creating Integrations
+description: Learn how to create new integration packages for LangChain.js
+---
+
+Integrations extend LangChain.js with support for third-party services like LLM providers, vector stores, document loaders, and more. This guide covers how to create standalone integration packages.
+
+<Warning>
+New integrations are **no longer accepted** in the `@langchain/community` package. They must be published as standalone packages in your own repository.
+</Warning>
+
+## Why Create an Integration?
+
+- **Discoverability**: LangChain has over 20 million monthly downloads
+- **Interoperability**: Standard interfaces allow developers to easily swap components
+- **Best Practices**: Built-in support for streaming, async operations, and observability
+
+## Quick Start with CLI
+
+The `create-langchain-integration` CLI scaffolds a new integration package with all the necessary configuration:
+
+```bash
+npx create-langchain-integration
+```
+
+This creates a package with:
+- TypeScript configuration with ESM + CJS support
+- Vitest for testing
+- ESLint and Prettier for code quality
+- Build tooling with tsdown
+- Standard directory structure
+
+## Package Structure
+
+A typical integration package follows this structure:
+
+```txt
+langchain-{provider}/
+├── package.json
+├── tsconfig.json
+├── tsdown.config.ts
+├── vitest.config.ts
+├── eslint.config.ts
+├── turbo.json
+├── README.md
+├── LICENSE
+├── .env.example
+└── src/
+    ├── index.ts
+    ├── chat_models/
+    │   ├── index.ts
+    │   └── tests/
+    │       ├── index.test.ts
+    │       ├── index.int.test.ts
+    │       ├── index.standard.test.ts
+    │       └── index.standard.int.test.ts
+    └── embeddings.ts
+```
+
+## Package Configuration
+
+### package.json Requirements
+
+Your `package.json` should include:
+
+```json
+{
+  "name": "@yourname/langchain-provider",
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "./dist/index.cjs",
+  "types": "./dist/index.d.cts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "peerDependencies": {
+    "@langchain/core": "^1.0.0"
+  },
+  "dependencies": {
+    "your-provider-sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@langchain/core": "^1.0.0",
+    "@langchain/standard-tests": "^0.1.0",
+    "vitest": "^3.2.4",
+    "typescript": "~5.8.3"
+  }
+}
+```
+
+<Info>
+Use `@langchain/core` as a **peer dependency** and install specific versions in `devDependencies` for testing.
+</Info>
+
+### TypeScript Configuration
+
+Extend from the recommended TypeScript config:
+
+```json
+{
+  "extends": "@tsconfig/recommended/tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist"
+  },
+  "include": ["src/**/*"]
+}
+```
+
+## Implementing Integrations
+
+### Chat Model Example
+
+Extend `BaseChatModel` from `@langchain/core`:
+
+```typescript
+import {
+  BaseChatModel,
+  type BaseChatModelParams,
+} from "@langchain/core/language_models/chat_models";
+import type { BaseMessage } from "@langchain/core/messages";
+import { ChatGenerationChunk } from "@langchain/core/outputs";
+import { CallbackManagerForLLMRun } from "@langchain/core/callbacks/manager";
+
+export interface MyChatModelParams extends BaseChatModelParams {
+  apiKey?: string;
+  model?: string;
+}
+
+export class MyChatModel extends BaseChatModel {
+  apiKey: string;
+  model: string;
+
+  constructor(fields: MyChatModelParams) {
+    super(fields);
+    this.apiKey = fields.apiKey ?? "";
+    this.model = fields.model ?? "default-model";
+  }
+
+  _llmType(): string {
+    return "my_chat_model";
+  }
+
+  async _generate(
+    messages: BaseMessage[],
+    options: this["ParsedCallOptions"],
+    runManager?: CallbackManagerForLLMRun
+  ): Promise<ChatResult> {
+    // Implement your chat completion logic
+    // Use runManager?.handleLLMNewToken(token) for streaming tokens
+  }
+
+  // Optional: Support streaming
+  async *_streamResponseChunks(
+    messages: BaseMessage[],
+    options: this["ParsedCallOptions"],
+    runManager?: CallbackManagerForLLMRun
+  ): AsyncGenerator<ChatGenerationChunk> {
+    // Yield chunks as they arrive
+    for await (const chunk of this.streamFromAPI(messages)) {
+      yield new ChatGenerationChunk({
+        message: chunk,
+        text: chunk.content,
+      });
+      await runManager?.handleLLMNewToken(chunk.content);
+    }
+  }
+}
+```
+
+### Vector Store Example
+
+Extend `VectorStore` from `@langchain/core`:
+
+```typescript
+import { VectorStore } from "@langchain/core/vectorstores";
+import type { Document } from "@langchain/core/documents";
+import type { Embeddings } from "@langchain/core/embeddings";
+
+export interface MyVectorStoreConfig {
+  apiKey?: string;
+  indexName?: string;
+}
+
+export class MyVectorStore extends VectorStore {
+  private client: any;
+
+  constructor(embeddings: Embeddings, config: MyVectorStoreConfig) {
+    super(embeddings, config);
+    this.client = initializeClient(config);
+  }
+
+  async addDocuments(documents: Document[]): Promise<void> {
+    const texts = documents.map((doc) => doc.pageContent);
+    const embeddings = await this.embeddings.embedDocuments(texts);
+    // Store embeddings in your vector database
+  }
+
+  async similaritySearchVectorWithScore(
+    query: number[],
+    k: number
+  ): Promise<[Document, number][]> {
+    // Query your vector database and return results
+  }
+}
+```
+
+## Best Practices
+
+### Use Existing Abstractions
+
+Before creating new classes, check if `@langchain/core` provides what you need:
+
+- `Runnable` - Base interface for all components
+- `BaseChatModel` - Chat models
+- `Embeddings` - Embedding models
+- `VectorStore` - Vector databases
+- `BaseRetriever` - Retrieval components
+- `StructuredTool` - Tools for agents
+- `BaseDocumentLoader` - Document loaders
+
+### Support Streaming
+
+Implement streaming for LLM-related components:
+
+```typescript
+async *_streamResponseChunks(
+  messages: BaseMessage[],
+  options: this["ParsedCallOptions"],
+  runManager?: CallbackManagerForLLMRun
+): AsyncGenerator<ChatGenerationChunk> {
+  // Yield chunks as they arrive
+  await runManager?.handleLLMNewToken(token);
+}
+```
+
+### Handle Callbacks Properly
+
+Use the callback manager for tracing and observability:
+
+```typescript
+await runManager?.handleLLMNewToken(token);
+await runManager?.handleLLMStart(...);
+await runManager?.handleLLMEnd(...);
+await runManager?.handleLLMError(error);
+```
+
+### Environment Variables
+
+Use the utility for accessing environment variables:
+
+```typescript
+import { getEnvironmentVariable } from "@langchain/core/utils/env";
+
+const apiKey = getEnvironmentVariable("MY_API_KEY");
+```
+
+### Use Third-Party Types
+
+Leverage exported types from third-party SDKs:
+
+```typescript
+import type {
+  MyProviderClient,
+  MyProviderClientOptions,
+} from "my-provider-sdk";
+
+export interface MyIntegrationConfig {
+  verbose?: boolean;
+  clientOptions?: MyProviderClientOptions;
+}
+
+export class MyIntegration {
+  private client: MyProviderClient;
+
+  constructor(config: MyIntegrationConfig) {
+    this.client = new MyProviderClient(config.clientOptions ?? {});
+  }
+}
+```
+
+This approach ensures your integration stays in sync with SDK updates.
+
+## Testing
+
+See the [Testing](/development/testing) page for comprehensive testing documentation, including:
+
+- Unit tests (`*.test.ts`)
+- Integration tests (`*.int.test.ts`)
+- Standard tests (`*.standard.test.ts`)
+- Type tests (`*.test-d.ts`)
+
+## Publishing Your Integration
+
+1. **Create your repository** (e.g., `https://github.com/yourname/langchain-yourservice`)
+2. **Publish to npm** (e.g., `@yourname/langchain-yourservice` or `langchain-yourservice`)
+3. **Let us know** by opening an issue or discussion so we can add it to recommended integrations
+
+### Publishing to npm
+
+```bash
+# Build your package
+pnpm build
+
+# Publish to npm
+npm publish
+```
+
+<Tip>
+Use [changesets](https://github.com/changesets/changesets) for managing releases and changelogs.
+</Tip>
+
+## Integration Types
+
+For specific guidance on different integration types:
+
+- **Chat Models & LLMs** - [LLM Providers Guide](https://github.com/langchain-ai/langchainjs/blob/main/.github/contributing/integrations/LLMS.md)
+- **Vector Stores** - [Vector Stores Guide](https://github.com/langchain-ai/langchainjs/blob/main/.github/contributing/integrations/VECTOR_STORES.md)
+- **Document Loaders** - [Document Loaders Guide](https://github.com/langchain-ai/langchainjs/blob/main/.github/contributing/integrations/DOCUMENT_LOADERS.md)
+- **Embeddings** - [Embeddings Guide](https://github.com/langchain-ai/langchainjs/blob/main/.github/contributing/integrations/EMBEDDINGS.md)
+- **Tools** - [Tools Guide](https://github.com/langchain-ai/langchainjs/blob/main/.github/contributing/integrations/TOOLS.md)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Testing" icon="vial" href="/development/testing">
+    Learn about the testing infrastructure
+  </Card>
+  <Card title="Contributing" icon="code-pull-request" href="/development/contributing">
+    Understand the contribution workflow
+  </Card>
+</CardGroup>

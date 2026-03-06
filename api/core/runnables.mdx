@@ -1,0 +1,196 @@
+---
+title: "Runnables"
+description: "Core Runnable interface and implementations for composing LLM applications"
+---
+
+## Overview
+
+The `Runnable` interface is the foundation of LangChain.js. All major components (chat models, tools, retrievers, etc.) implement this interface, enabling seamless composition and chaining.
+
+## Core Classes
+
+### Runnable
+
+The base class that all runnable components extend.
+
+**Import:**
+```typescript
+import { Runnable } from "@langchain/core/runnables";
+```
+
+**Key Methods:**
+
+<ParamField path="invoke" type="method">
+  Invoke the runnable with a single input
+  
+  ```typescript
+  async invoke(input: RunInput, config?: RunnableConfig): Promise<RunOutput>
+  ```
+</ParamField>
+
+<ParamField path="stream" type="method">
+  Stream the runnable output
+  
+  ```typescript
+  async *stream(input: RunInput, config?: RunnableConfig): AsyncGenerator<RunOutput>
+  ```
+</ParamField>
+
+<ParamField path="batch" type="method">
+  Process multiple inputs in parallel
+  
+  ```typescript
+  async batch(inputs: RunInput[], config?: RunnableConfig): Promise<RunOutput[]>
+  ```
+</ParamField>
+
+<ParamField path="pipe" type="method">
+  Chain this runnable with another
+  
+  ```typescript
+  pipe<NewRunOutput>(coerceable: RunnableLike<RunOutput, NewRunOutput>): Runnable<RunInput, NewRunOutput>
+  ```
+</ParamField>
+
+### RunnableSequence
+
+A sequence of runnables that execute in order, passing output to the next runnable.
+
+```typescript
+import { RunnableSequence } from "@langchain/core/runnables";
+
+const sequence = RunnableSequence.from([
+  promptTemplate,
+  model,
+  outputParser
+]);
+
+const result = await sequence.invoke({ input: "Hello" });
+```
+
+### RunnableParallel
+
+Runs multiple runnables in parallel and combines their outputs.
+
+```typescript
+import { RunnableParallel } from "@langchain/core/runnables";
+
+const parallel = RunnableParallel.from({
+  response: model,
+  summary: summarizer,
+});
+
+const result = await parallel.invoke({ input: "text" });
+// { response: "...", summary: "..." }
+```
+
+### RunnableLambda
+
+Wrap a function as a Runnable.
+
+```typescript
+import { RunnableLambda } from "@langchain/core/runnables";
+
+const uppercase = RunnableLambda.from((input: string) => {
+  return input.toUpperCase();
+});
+
+const result = await uppercase.invoke("hello");
+// "HELLO"
+```
+
+### RunnablePassthrough
+
+Passes input through unchanged, optionally assigning additional fields.
+
+```typescript
+import { RunnablePassthrough } from "@langchain/core/runnables";
+
+const chain = RunnablePassthrough.assign({
+  extra: (input) => `Extra: ${input.text}`
+}).pipe(model);
+```
+
+### RunnableBranch
+
+Conditionally routes to different runnables based on input.
+
+```typescript
+import { RunnableBranch } from "@langchain/core/runnables";
+
+const branch = RunnableBranch.from([
+  [(input) => input.length > 100, longHandler],
+  [(input) => input.length > 10, mediumHandler],
+  shortHandler // default
+]);
+```
+
+## Configuration
+
+### RunnableConfig
+
+Configuration options for runnable execution:
+
+```typescript
+interface RunnableConfig {
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+  callbacks?: Callbacks;
+  runName?: string;
+  maxConcurrency?: number;
+  recursionLimit?: number;
+  configurable?: Record<string, unknown>;
+  runId?: string;
+  signal?: AbortSignal;
+}
+```
+
+## Examples
+
+### Basic Chain
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+
+const model = new ChatOpenAI();
+const prompt = ChatPromptTemplate.fromTemplate("Tell me a joke about {topic}");
+const parser = new StringOutputParser();
+
+const chain = prompt.pipe(model).pipe(parser);
+
+const result = await chain.invoke({ topic: "cats" });
+console.log(result); // "Why did the cat..."
+```
+
+### Streaming
+
+```typescript
+const stream = await chain.stream({ topic: "dogs" });
+
+for await (const chunk of stream) {
+  console.log(chunk);
+}
+```
+
+### Batch Processing
+
+```typescript
+const results = await chain.batch([
+  { topic: "cats" },
+  { topic: "dogs" },
+  { topic: "birds" }
+]);
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Core Concepts: Runnables" href="/core-concepts/runnables">
+    Learn about the Runnable pattern
+  </Card>
+  <Card title="Chat Models" href="/api/core/chat-models">
+    Chat models are Runnables
+  </Card>
+</CardGroup>

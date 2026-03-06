@@ -1,0 +1,585 @@
+---
+title: Chat Models
+description: Working with language models in LangChain.js
+---
+
+## Overview
+
+Chat models are the reasoning engines that power LangChain applications. They process messages and generate responses, optionally calling tools to accomplish tasks. All chat models in LangChain.js extend `BaseChatModel` and implement the Runnable interface.
+
+<Info>
+The `BaseChatModel` class is defined in `@langchain/core/language_models/chat_models.ts`
+</Info>
+
+## Basic Usage
+
+### Creating a Model
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o",
+  temperature: 0.7,
+  maxTokens: 1000,
+});
+```
+
+### Invoking
+
+Send messages and get a response:
+
+```typescript
+import { HumanMessage } from "@langchain/core/messages";
+
+const response = await model.invoke([
+  new HumanMessage("What is LangChain?"),
+]);
+
+console.log(response.content);
+// "LangChain is a framework for building applications with large language models..."
+```
+
+Using shorthand:
+
+```typescript
+const response = await model.invoke([
+  ["system", "You are a helpful assistant."],
+  ["human", "What is LangChain?"],
+]);
+```
+
+## Streaming
+
+Stream responses token by token:
+
+```typescript
+const stream = await model.stream([
+  ["human", "Write a short poem about TypeScript"],
+]);
+
+for await (const chunk of stream) {
+  process.stdout.write(chunk.content);
+}
+```
+
+Handle streaming with callbacks:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({
+  streaming: true,
+  callbacks: [{
+    handleLLMNewToken(token: string) {
+      process.stdout.write(token);
+    },
+  }],
+});
+
+const response = await model.invoke([
+  ["human", "Count to 10"],
+]);
+```
+
+## Model Parameters
+
+### Common Parameters
+
+All chat models support these parameters:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({
+  // Model identifier
+  model: "gpt-4o",
+  
+  // Controls randomness (0.0 to 2.0)
+  temperature: 0.7,
+  
+  // Maximum tokens in response
+  maxTokens: 1000,
+  
+  // Alternative to temperature
+  topP: 0.9,
+  
+  // Stop sequences
+  stop: ["\n\n", "END"],
+  
+  // Number of responses to generate
+  n: 1,
+  
+  // Streaming enabled
+  streaming: false,
+  
+  // Timeout in milliseconds
+  timeout: 60000,
+  
+  // Max retries
+  maxRetries: 2,
+});
+```
+
+### Provider-Specific Parameters
+
+Each provider may have additional parameters:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o",
+  
+  // OpenAI specific
+  presencePenalty: 0.5,
+  frequencyPenalty: 0.5,
+  logitBias: { "50256": -100 },
+  user: "user-123",
+});
+```
+
+```typescript
+import { ChatAnthropic } from "@langchain/anthropic";
+
+const model = new ChatAnthropic({
+  model: "claude-3-5-sonnet-20241022",
+  
+  // Anthropic specific
+  maxTokens: 4096,
+  topK: 40,
+});
+```
+
+## Tool Calling
+
+Bind tools to models for function calling:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+
+const searchTool = tool(
+  async ({ query }) => {
+    return `Results for: ${query}`;
+  },
+  {
+    name: "search",
+    description: "Search for information",
+    schema: z.object({
+      query: z.string().describe("The search query"),
+    }),
+  }
+);
+
+const modelWithTools = model.bindTools([searchTool]);
+
+const response = await modelWithTools.invoke([
+  ["human", "Search for LangChain documentation"],
+]);
+
+// Check for tool calls
+if (response.tool_calls && response.tool_calls.length > 0) {
+  console.log("Tool calls:", response.tool_calls);
+  // [
+  //   {
+  //     id: "call_abc123",
+  //     name: "search",
+  //     args: { query: "LangChain documentation" }
+  //   }
+  // ]
+}
+```
+
+### Tool Choice
+
+Control when tools are used:
+
+```typescript
+// Must use tools
+const response = await modelWithTools.invoke(
+  [["human", "What's the weather?"]],
+  { tool_choice: "any" }
+);
+
+// Must use a specific tool
+const response = await modelWithTools.invoke(
+  [["human", "What's the weather?"]],
+  { tool_choice: "get_weather" }
+);
+
+// Can use tools but doesn't have to
+const response = await modelWithTools.invoke(
+  [["human", "What's the weather?"]],
+  { tool_choice: "auto" }
+);
+```
+
+### Executing Tool Calls
+
+```typescript
+import { HumanMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
+
+const messages = [
+  new HumanMessage("Search for LangChain"),
+];
+
+// Get AI response with tool call
+const aiResponse = await modelWithTools.invoke(messages);
+messages.push(aiResponse);
+
+// Execute tool calls
+for (const toolCall of aiResponse.tool_calls || []) {
+  const result = await searchTool.invoke(toolCall.args);
+  
+  messages.push(
+    new ToolMessage({
+      content: result,
+      tool_call_id: toolCall.id,
+      name: toolCall.name,
+    })
+  );
+}
+
+// Get final response
+const finalResponse = await model.invoke(messages);
+console.log(finalResponse.content);
+```
+
+## Structured Output
+
+Get validated, typed responses:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { z } from "zod";
+
+const PersonSchema = z.object({
+  name: z.string().describe("The person's name"),
+  age: z.number().describe("The person's age"),
+  email: z.string().email().describe("Email address"),
+});
+
+const modelWithStructuredOutput = model.withStructuredOutput(PersonSchema);
+
+const person = await modelWithStructuredOutput.invoke([
+  ["human", "Extract: John Doe, 30 years old, john@example.com"],
+]);
+
+console.log(person);
+// { name: "John Doe", age: 30, email: "john@example.com" }
+
+// TypeScript knows the type!
+person.name; // string
+person.age;  // number
+```
+
+With tool strategy:
+
+```typescript
+const modelWithStructuredOutput = model.withStructuredOutput(
+  PersonSchema,
+  {
+    method: "functionCalling", // or "jsonMode"
+    name: "person_extractor",
+  }
+);
+```
+
+## Response Metadata
+
+Access metadata about the response:
+
+```typescript
+const response = await model.invoke([
+  ["human", "Hello!"],
+]);
+
+console.log(response.response_metadata);
+// {
+//   model_name: "gpt-4o",
+//   finish_reason: "stop",
+//   system_fingerprint: "fp_..."
+// }
+```
+
+### Usage Metadata
+
+Track token usage:
+
+```typescript
+if (response.usage_metadata) {
+  console.log("Tokens:", {
+    input: response.usage_metadata.input_tokens,
+    output: response.usage_metadata.output_tokens,
+    total: response.usage_metadata.total_tokens,
+  });
+}
+```
+
+## Batch Processing
+
+Process multiple requests:
+
+```typescript
+const results = await model.batch([
+  [["human", "What is 2+2?"]],
+  [["human", "What is 3+3?"]],
+  [["human", "What is 4+4?"]],
+]);
+
+results.forEach((result) => {
+  console.log(result.content);
+});
+```
+
+With concurrency control:
+
+```typescript
+const results = await model.batch(
+  inputs,
+  { maxConcurrency: 3 } // Process 3 at a time
+);
+```
+
+## Caching
+
+Cache responses to save costs:
+
+```typescript
+import { InMemoryCache } from "@langchain/core/caches";
+
+const cache = new InMemoryCache();
+
+const model = new ChatOpenAI({
+  cache,
+});
+
+// First call - hits the API
+const response1 = await model.invoke([["human", "What is AI?"]]);
+
+// Second call - returns from cache
+const response2 = await model.invoke([["human", "What is AI?"]]);
+```
+
+## Error Handling
+
+### Retries
+
+```typescript
+const modelWithRetry = model.withRetry({
+  stopAfterAttempt: 3,
+});
+
+try {
+  const response = await modelWithRetry.invoke(messages);
+} catch (error) {
+  console.error("All retries failed:", error);
+}
+```
+
+### Fallbacks
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { ChatAnthropic } from "@langchain/anthropic";
+
+const primaryModel = new ChatOpenAI({ model: "gpt-4o" });
+const fallbackModel = new ChatAnthropic({ model: "claude-3-5-sonnet-20241022" });
+
+const modelWithFallback = primaryModel.withFallbacks([fallbackModel]);
+
+// If OpenAI fails, tries Anthropic
+const response = await modelWithFallback.invoke(messages);
+```
+
+### Timeouts
+
+```typescript
+const response = await model.invoke(
+  messages,
+  {
+    signal: AbortSignal.timeout(5000), // 5 second timeout
+  }
+);
+```
+
+## Multi-Modal Models
+
+Some models support images:
+
+```typescript
+import { HumanMessage } from "@langchain/core/messages";
+
+const response = await model.invoke([
+  new HumanMessage({
+    content: [
+      {
+        type: "text",
+        text: "What's in this image?",
+      },
+      {
+        type: "image_url",
+        image_url: {
+          url: "https://example.com/image.jpg",
+        },
+      },
+    ],
+  }),
+]);
+```
+
+With base64 images:
+
+```typescript
+const response = await model.invoke([
+  new HumanMessage({
+    content: [
+      { type: "text", text: "Describe this image" },
+      {
+        type: "image_url",
+        image_url: {
+          url: `data:image/jpeg;base64,${base64Image}`,
+        },
+      },
+    ],
+  }),
+]);
+```
+
+## Model Comparison
+
+| Provider | Package | Best For |
+|----------|---------|----------|
+| OpenAI | `@langchain/openai` | General purpose, GPT-4o, function calling |
+| Anthropic | `@langchain/anthropic` | Long context, Claude 3.5 Sonnet |
+| Google | `@langchain/google-genai` | Multimodal, Gemini Pro |
+| Mistral | `@langchain/mistral` | Open source, cost-effective |
+| Cohere | `@langchain/cohere` | RAG, embeddings |
+| Groq | `@langchain/groq` | Fast inference |
+
+## Provider Examples
+
+### OpenAI
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o",
+  apiKey: process.env.OPENAI_API_KEY,
+});
+```
+
+### Anthropic
+
+```typescript
+import { ChatAnthropic } from "@langchain/anthropic";
+
+const model = new ChatAnthropic({
+  model: "claude-3-5-sonnet-20241022",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+```
+
+### Google
+
+```typescript
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+
+const model = new ChatGoogleGenerativeAI({
+  model: "gemini-pro",
+  apiKey: process.env.GOOGLE_API_KEY,
+});
+```
+
+## Type Signatures
+
+```typescript
+abstract class BaseChatModel<
+  CallOptions extends BaseChatModelCallOptions = BaseChatModelCallOptions
+> extends BaseLanguageModel {
+  abstract _generate(
+    messages: BaseMessage[],
+    options: CallOptions,
+    runManager?: CallbackManagerForLLMRun
+  ): Promise<ChatResult>;
+  
+  async invoke(
+    input: BaseMessage[],
+    options?: CallOptions
+  ): Promise<AIMessage>;
+  
+  async stream(
+    input: BaseMessage[],
+    options?: CallOptions
+  ): Promise<IterableReadableStream<AIMessageChunk>>;
+  
+  bindTools(
+    tools: BindToolsInput[],
+    kwargs?: Partial<CallOptions>
+  ): Runnable<BaseMessage[], AIMessage>;
+  
+  withStructuredOutput<T>(
+    schema: z.ZodType<T>,
+    options?: StructuredOutputMethodOptions
+  ): Runnable<BaseMessage[], T>;
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Choose the Right Temperature">
+    - **0.0-0.3**: Factual, deterministic responses
+    - **0.7-0.9**: Creative, varied responses
+    - **1.0+**: Very creative, potentially inconsistent
+  </Accordion>
+  
+  <Accordion title="Use Structured Output">
+    When you need typed data, use `withStructuredOutput()` instead of parsing JSON from text:
+    ```typescript
+    // ✓ Good
+    const result = await model.withStructuredOutput(schema).invoke(messages);
+    
+    // ✗ Avoid
+    const text = await model.invoke(messages);
+    const result = JSON.parse(text.content);
+    ```
+  </Accordion>
+  
+  <Accordion title="Handle Rate Limits">
+    Use retries and fallbacks for production:
+    ```typescript
+    const robustModel = model
+      .withRetry({ stopAfterAttempt: 3 })
+      .withFallbacks([fallbackModel]);
+    ```
+  </Accordion>
+  
+  <Accordion title="Monitor Token Usage">
+    Track usage to manage costs:
+    ```typescript
+    const response = await model.invoke(messages);
+    console.log(`Tokens used: ${response.usage_metadata?.total_tokens}`);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Tools" icon="wrench" href="/core-concepts/tools">
+    Give models abilities with tools
+  </Card>
+  <Card title="Agents" icon="brain" href="/core-concepts/agents">
+    Build autonomous systems
+  </Card>
+  <Card title="Prompts" icon="file-text" href="/core-concepts/prompts">
+    Create effective prompts
+  </Card>
+  <Card title="Messages" icon="message" href="/core-concepts/messages">
+    Understand message types
+  </Card>
+</CardGroup>

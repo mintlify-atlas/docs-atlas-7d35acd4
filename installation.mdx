@@ -1,0 +1,390 @@
+---
+title: Installation
+description: Install LangChain.js and get started building LLM applications
+---
+
+# Installation
+
+This guide covers installing LangChain.js and its dependencies. LangChain.js is distributed as npm packages and supports multiple JavaScript runtimes.
+
+## Prerequisites
+
+Before installing LangChain.js, ensure you have:
+
+<Steps>
+  <Step title="Node.js 20.x or higher">
+    LangChain.js requires Node.js version 20.x, 22.x, or 24.x.
+    
+    ```bash
+    # Check your Node.js version
+    node -v
+    ```
+    
+    <Note>
+      If you need to manage multiple Node.js versions, consider using [nvm](https://github.com/nvm-sh/nvm) (Node Version Manager).
+    </Note>
+  </Step>
+  
+  <Step title="Package Manager">
+    Choose one of the following package managers:
+    - [npm](https://www.npmjs.com/) (comes with Node.js)
+    - [pnpm](https://pnpm.io/) (recommended for monorepos)
+    - [yarn](https://yarnpkg.com/)
+  </Step>
+</Steps>
+
+## Installing LangChain
+
+Install the main `langchain` package using your preferred package manager:
+
+<CodeGroup>
+```bash npm
+npm install langchain
+```
+
+```bash pnpm
+pnpm install langchain
+```
+
+```bash yarn
+yarn add langchain
+```
+</CodeGroup>
+
+The `langchain` package includes:
+- Core LangChain functionality
+- Agent implementations
+- Chains and memory systems
+- Integration with `@langchain/core` (automatically installed as a dependency)
+
+## Installing Core Packages
+
+Depending on your use case, you may want to install additional core packages:
+
+### @langchain/core
+
+The `@langchain/core` package contains core abstractions and interfaces. It's automatically installed with `langchain`, but you can also use it standalone:
+
+<CodeGroup>
+```bash npm
+npm install @langchain/core
+```
+
+```bash pnpm
+pnpm install @langchain/core
+```
+
+```bash yarn
+yarn add @langchain/core
+```
+</CodeGroup>
+
+### @langchain/community
+
+Community-maintained integrations for various tools and services:
+
+<CodeGroup>
+```bash npm
+npm install @langchain/community
+```
+
+```bash pnpm
+pnpm install @langchain/community
+```
+
+```bash yarn
+yarn add @langchain/community
+```
+</CodeGroup>
+
+### @langchain/textsplitters
+
+Utilities for splitting text and documents:
+
+<CodeGroup>
+```bash npm
+npm install @langchain/textsplitters
+```
+
+```bash pnpm
+pnpm install @langchain/textsplitters
+```
+
+```bash yarn
+yarn add @langchain/textsplitters
+```
+</CodeGroup>
+
+## Installing Model Providers
+
+To use LLMs, you'll need to install at least one model provider package. Here are the most popular options:
+
+### OpenAI
+
+<CodeGroup>
+```bash npm
+npm install @langchain/openai
+```
+
+```bash pnpm
+pnpm install @langchain/openai
+```
+
+```bash yarn
+yarn add @langchain/openai
+```
+</CodeGroup>
+
+### Anthropic (Claude)
+
+<CodeGroup>
+```bash npm
+npm install @langchain/anthropic
+```
+
+```bash pnpm
+pnpm install @langchain/anthropic
+```
+
+```bash yarn
+yarn add @langchain/anthropic
+```
+</CodeGroup>
+
+### Google Vertex AI
+
+<CodeGroup>
+```bash npm
+npm install @langchain/google-vertexai
+```
+
+```bash pnpm
+pnpm install @langchain/google-vertexai
+```
+
+```bash yarn
+yarn add @langchain/google-vertexai
+```
+</CodeGroup>
+
+### Google Generative AI
+
+<CodeGroup>
+```bash npm
+npm install @langchain/google-genai
+```
+
+```bash pnpm
+pnpm install @langchain/google-genai
+```
+
+```bash yarn
+yarn add @langchain/google-genai
+```
+</CodeGroup>
+
+### Other Providers
+
+LangChain.js supports many other providers:
+
+| Provider | Package |
+|----------|----------|
+| Mistral AI | `@langchain/mistralai` |
+| Cohere | `@langchain/cohere` |
+| Groq | `@langchain/groq` |
+| Ollama | `@langchain/ollama` |
+| AWS Bedrock | `@langchain/aws` |
+| Cerebras | `@langchain/cerebras` |
+| DeepSeek | `@langchain/deepseek` |
+| xAI | `@langchain/xai` |
+
+See the [complete list of integrations](/integrations/providers) for all available providers.
+
+## Environment Setup
+
+After installing packages, you'll need to set up API keys for the services you plan to use.
+
+<Steps>
+  <Step title="Create a .env file">
+    Create a `.env` file in your project root:
+    
+    ```bash
+    touch .env
+    ```
+  </Step>
+  
+  <Step title="Add your API keys">
+    Add the API keys for your chosen providers:
+    
+    ```bash .env
+    # OpenAI
+    OPENAI_API_KEY=your-openai-api-key
+    
+    # Anthropic
+    ANTHROPIC_API_KEY=your-anthropic-api-key
+    
+    # Google (for Vertex AI or Generative AI)
+    GOOGLE_API_KEY=your-google-api-key
+    
+    # Other providers
+    MISTRAL_API_KEY=your-mistral-api-key
+    COHERE_API_KEY=your-cohere-api-key
+    GROQ_API_KEY=your-groq-api-key
+    ```
+  </Step>
+  
+  <Step title="Load environment variables">
+    Install and configure `dotenv` to load your environment variables:
+    
+    <CodeGroup>
+    ```bash npm
+    npm install dotenv
+    ```
+    
+    ```bash pnpm
+    pnpm install dotenv
+    ```
+    
+    ```bash yarn
+    yarn add dotenv
+    ```
+    </CodeGroup>
+    
+    Then load it at the start of your application:
+    
+    ```typescript
+    import "dotenv/config";
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+  Never commit your `.env` file to version control. Add it to your `.gitignore`:
+  
+  ```bash .gitignore
+  .env
+  .env.local
+  ```
+</Warning>
+
+## Verifying Installation
+
+Create a simple test file to verify your installation:
+
+```typescript test.ts
+import "dotenv/config";
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o-mini",
+  temperature: 0,
+});
+
+const response = await model.invoke("Hello! Can you hear me?");
+console.log(response.content);
+```
+
+Run the test:
+
+<CodeGroup>
+```bash Node.js with tsx
+npx tsx test.ts
+```
+
+```bash Node.js (ES modules)
+node test.ts
+```
+
+```bash Deno
+deno run --allow-net --allow-env test.ts
+```
+
+```bash Bun
+bun run test.ts
+```
+</CodeGroup>
+
+If everything is set up correctly, you should see a response from the model.
+
+## TypeScript Configuration
+
+LangChain.js is written in TypeScript. For the best development experience, configure your `tsconfig.json`:
+
+```json tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true
+  }
+}
+```
+
+<Note>
+  LangChain.js uses ES modules by default. Make sure your `package.json` includes `"type": "module"` if using Node.js.
+</Note>
+
+## Alternative Runtimes
+
+### Deno
+
+LangChain.js works with Deno. Import packages from npm:
+
+```typescript
+import { ChatOpenAI } from "npm:@langchain/openai";
+import { ChatPromptTemplate } from "npm:@langchain/core/prompts";
+
+// Your code here
+```
+
+### Bun
+
+Install packages normally with Bun's package manager:
+
+```bash
+bun add langchain @langchain/openai
+```
+
+### Browser
+
+For browser environments, use a bundler like Webpack, Vite, or Rollup. Most LangChain functionality works in browsers, but some features (like file system access) are Node.js-specific.
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+
+// Your browser-compatible code here
+```
+
+<Warning>
+  When using LangChain in browsers, never expose API keys in client-side code. Use a backend proxy to make API calls securely.
+</Warning>
+
+## Next Steps
+
+Now that you have LangChain.js installed:
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/getting-started/quickstart">
+    Build your first LangChain application with a step-by-step guide
+  </Card>
+  
+  <Card title="Learn Core Concepts" icon="book" href="/learn/concepts">
+    Understand the fundamental concepts behind LangChain
+  </Card>
+  
+  <Card title="Browse Integrations" icon="puzzle-piece" href="/integrations/providers">
+    Explore all available model providers and integrations
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="https://api.js.langchain.com">
+    Dive into the complete API documentation
+  </Card>
+</CardGroup>

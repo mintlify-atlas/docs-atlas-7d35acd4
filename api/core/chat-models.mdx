@@ -1,0 +1,242 @@
+---
+title: "Chat Models"
+description: "Base classes and interfaces for chat language models"
+---
+
+## Overview
+
+Chat models take messages as input and return messages as output. They support streaming, tool calling, and structured output.
+
+## BaseChatModel
+
+The abstract base class that all chat models extend.
+
+**Import:**
+```typescript
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
+```
+
+### Methods
+
+<ParamField path="invoke" type="method">
+  Generate a response for a list of messages
+  
+  ```typescript
+  async invoke(
+    messages: BaseMessage[],
+    options?: RunnableConfig
+  ): Promise<AIMessage>
+  ```
+</ParamField>
+
+<ParamField path="stream" type="method">
+  Stream the response token by token
+  
+  ```typescript
+  async *stream(
+    messages: BaseMessage[],
+    options?: RunnableConfig
+  ): AsyncGenerator<AIMessageChunk>
+  ```
+</ParamField>
+
+<ParamField path="batch" type="method">
+  Process multiple message lists in parallel
+  
+  ```typescript
+  async batch(
+    messageLists: BaseMessage[][],
+    options?: RunnableConfig
+  ): Promise<AIMessage[]>
+  ```
+</ParamField>
+
+<ParamField path="bindTools" type="method">
+  Bind tools for tool calling
+  
+  ```typescript
+  bindTools(tools: ToolDefinition[]): BaseChatModel
+  ```
+</ParamField>
+
+<ParamField path="withStructuredOutput" type="method">
+  Get structured output matching a schema
+  
+  ```typescript
+  withStructuredOutput<T>(
+    schema: StructuredOutputSchema<T>
+  ): Runnable<BaseMessage[], T>
+  ```
+</ParamField>
+
+## Common Parameters
+
+<ParamField path="temperature" type="number" optional>
+  Sampling temperature (0-2). Higher values make output more random.
+  Default: 1.0
+</ParamField>
+
+<ParamField path="maxTokens" type="number" optional>
+  Maximum tokens to generate
+</ParamField>
+
+<ParamField path="timeout" type="number" optional>
+  Request timeout in milliseconds
+</ParamField>
+
+<ParamField path="maxRetries" type="number" optional>
+  Maximum retry attempts on failure
+  Default: 2
+</ParamField>
+
+## Examples
+
+### Basic Usage
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o",
+  temperature: 0.7,
+  maxTokens: 500
+});
+
+const response = await model.invoke([
+  ["system", "You are a helpful assistant"],
+  ["human", "Tell me a joke"]
+]);
+
+console.log(response.content);
+```
+
+### Streaming
+
+```typescript
+const stream = await model.stream([
+  ["human", "Write a poem about the ocean"]
+]);
+
+for await (const chunk of stream) {
+  console.log(chunk.content);
+}
+```
+
+### Tool Calling
+
+```typescript
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+
+const calculator = tool(
+  async ({ expression }) => {
+    return String(eval(expression));
+  },
+  {
+    name: "calculator",
+    description: "Evaluate a mathematical expression",
+    schema: z.object({
+      expression: z.string().describe("The expression to evaluate")
+    })
+  }
+);
+
+const modelWithTools = model.bindTools([calculator]);
+
+const response = await modelWithTools.invoke([
+  ["human", "What's 25 * 4?"]
+]);
+
+if (response.tool_calls && response.tool_calls.length > 0) {
+  console.log("Tool calls:", response.tool_calls);
+}
+```
+
+### Structured Output
+
+```typescript
+import { z } from "zod";
+
+const schema = z.object({
+  name: z.string(),
+  age: z.number(),
+  email: z.string().email()
+});
+
+const structuredModel = model.withStructuredOutput(schema);
+
+const result = await structuredModel.invoke([
+  ["human", "Extract info: John Doe is 30 years old. Email: john@example.com"]
+]);
+
+console.log(result);
+// { name: "John Doe", age: 30, email: "john@example.com" }
+```
+
+### Batch Processing
+
+```typescript
+const responses = await model.batch([
+  [["human", "What is 2+2?"]],
+  [["human", "What is 3+3?"]],
+  [["human", "What is 4+4?"]]
+]);
+
+responses.forEach((response, i) => {
+  console.log(`Response ${i + 1}:`, response.content);
+});
+```
+
+## Response Metadata
+
+AI messages include response metadata:
+
+```typescript
+const response = await model.invoke([["human", "Hi"]]);
+
+console.log(response.response_metadata);
+// {
+//   model_name: "gpt-4o",
+//   finish_reason: "stop",
+//   usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }
+// }
+```
+
+## Implementing Custom Chat Models
+
+Extend `BaseChatModel` to create custom implementations:
+
+```typescript
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { AIMessage } from "@langchain/core/messages";
+
+class CustomChatModel extends BaseChatModel {
+  _llmType() {
+    return "custom";
+  }
+
+  async _generate(
+    messages: BaseMessage[],
+    options?: this["ParsedCallOptions"]
+  ): Promise<ChatResult> {
+    // Your implementation
+    return {
+      generations: [{
+        message: new AIMessage("Custom response"),
+        text: "Custom response"
+      }]
+    };
+  }
+}
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Chat Model Integrations" href="/integrations/chat-models">
+    Available provider integrations
+  </Card>
+  <Card title="Working with Chat Models" href="/guides/working-with-chat-models">
+    Complete guide to chat models
+  </Card>
+</CardGroup>

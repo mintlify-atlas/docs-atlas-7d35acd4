@@ -1,0 +1,231 @@
+---
+title: "Messages"
+description: "Message types and utilities for chat-based LLM interactions"
+---
+
+## Overview
+
+Messages are the core data structures for chat-based LLM interactions in LangChain.js. Each message has a role and content.
+
+**Import:**
+```typescript
+import {
+  BaseMessage,
+  HumanMessage,
+  AIMessage,
+  SystemMessage,
+  ToolMessage
+} from "@langchain/core/messages";
+```
+
+## Message Types
+
+### HumanMessage
+
+Represents user input.
+
+```typescript
+const message = new HumanMessage("Hello, how are you?");
+
+// With additional fields
+const message = new HumanMessage({
+  content: "Hello",
+  name: "Alice",
+  additional_kwargs: { userId: "123" }
+});
+```
+
+### AIMessage
+
+Represents model output.
+
+```typescript
+const message = new AIMessage("I'm doing well, thank you!");
+
+// With tool calls
+const message = new AIMessage({
+  content: "",
+  tool_calls: [{
+    name: "calculator",
+    args: { expression: "2+2" },
+    id: "call_123"
+  }]
+});
+```
+
+### SystemMessage
+
+Represents system instructions or context.
+
+```typescript
+const message = new SystemMessage(
+  "You are a helpful assistant that speaks like a pirate."
+);
+```
+
+### ToolMessage
+
+Represents the result of a tool call.
+
+```typescript
+const message = new ToolMessage({
+  content: "4",
+  tool_call_id: "call_123",
+  name: "calculator"
+});
+```
+
+## Message Properties
+
+<ParamField path="content" type="string | ContentBlock[]">
+  The message content (text or multimodal)
+</ParamField>
+
+<ParamField path="name" type="string" optional>
+  Optional name of the message author
+</ParamField>
+
+<ParamField path="additional_kwargs" type="Record<string, any>" optional>
+  Additional provider-specific data
+</ParamField>
+
+<ParamField path="response_metadata" type="Record<string, any>" optional>
+  Metadata from the model response
+</ParamField>
+
+## Multimodal Content
+
+Messages can contain text, images, and other media:
+
+```typescript
+import { HumanMessage } from "@langchain/core/messages";
+
+const message = new HumanMessage({
+  content: [
+    {
+      type: "text",
+      text: "What's in this image?"
+    },
+    {
+      type: "image_url",
+      image_url: { url: "https://example.com/image.jpg" }
+    }
+  ]
+});
+```
+
+## Message Shortcuts
+
+LangChain provides tuple shortcuts for creating messages:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI();
+
+const response = await model.invoke([
+  ["system", "You are a helpful assistant"],
+  ["human", "Hello!"]
+]);
+```
+
+## Message Utilities
+
+### filterMessages
+
+Filter messages by type or custom criteria:
+
+```typescript
+import { filterMessages } from "@langchain/core/messages";
+
+const filtered = filterMessages(messages, {
+  includeTypes: ["human", "ai"],
+  excludeNames: ["system"]
+});
+```
+
+### trimMessages
+
+Trim messages to fit within a token limit:
+
+```typescript
+import { trimMessages } from "@langchain/core/messages";
+
+const trimmed = await trimMessages(messages, {
+  maxTokens: 1000,
+  strategy: "last", // or "first"
+  tokenCounter: (messages) => messages.length * 10
+});
+```
+
+## Tool Calls
+
+AI messages can include tool calls:
+
+```typescript
+const aiMessage = new AIMessage({
+  content: "Let me calculate that for you.",
+  tool_calls: [
+    {
+      name: "calculator",
+      args: { expression: "100 * 25" },
+      id: "call_abc123",
+      type: "tool_call"
+    }
+  ]
+});
+
+// Check for tool calls
+if (aiMessage.tool_calls && aiMessage.tool_calls.length > 0) {
+  console.log("Model wants to call tools:", aiMessage.tool_calls);
+}
+```
+
+## Examples
+
+### Conversation History
+
+```typescript
+import { HumanMessage, AIMessage } from "@langchain/core/messages";
+
+const conversation = [
+  new HumanMessage("Hi, my name is Alice"),
+  new AIMessage("Hello Alice! How can I help you today?"),
+  new HumanMessage("What's my name?"),
+];
+
+const response = await model.invoke(conversation);
+// "Your name is Alice."
+```
+
+### Tool Use Flow
+
+```typescript
+const messages = [
+  new HumanMessage("What's 25 * 4?"),
+  new AIMessage({
+    content: "",
+    tool_calls: [{
+      name: "calculator",
+      args: { expression: "25*4" },
+      id: "call_1"
+    }]
+  }),
+  new ToolMessage({
+    content: "100",
+    tool_call_id: "call_1"
+  }),
+  new AIMessage("25 * 4 = 100")
+];
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Core Concepts: Messages" href="/core-concepts/messages">
+    Learn about message patterns
+  </Card>
+  <Card title="Chat Models" href="/api/core/chat-models">
+    Using messages with chat models
+  </Card>
+</CardGroup>

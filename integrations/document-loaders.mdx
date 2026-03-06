@@ -1,0 +1,524 @@
+---
+title: Document Loaders
+description: Load and process documents from various sources and formats
+---
+
+Document loaders are essential for ingesting data into LangChain applications. They handle reading documents from various sources and formats, converting them into a standard format that can be processed by other LangChain components.
+
+## Document Loader Types
+
+<CardGroup cols={2}>
+  <Card title="File Loaders" icon="file" href="#file-loaders">
+    PDF, DOCX, CSV, and other file formats
+  </Card>
+  
+  <Card title="Web Loaders" icon="globe" href="#web-loaders">
+    Web pages, APIs, and online services
+  </Card>
+  
+  <Card title="Cloud Storage" icon="cloud" href="#cloud-storage">
+    S3, Azure Blob Storage, Google Cloud Storage
+  </Card>
+  
+  <Card title="Databases" icon="database" href="#databases">
+    SQL, NoSQL, and specialized databases
+  </Card>
+</CardGroup>
+
+## Installation
+
+Most document loaders are in the `@langchain/community` package:
+
+```bash
+npm install @langchain/community
+```
+
+Some loaders have additional dependencies. Install them as needed for your specific use case.
+
+## File Loaders
+
+### PDF Loader
+
+Load and parse PDF documents:
+
+```bash
+npm install pdf-parse
+```
+
+```typescript
+import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
+
+const loader = new PDFLoader("path/to/document.pdf");
+const docs = await loader.load();
+
+console.log(docs[0].pageContent); // PDF text content
+console.log(docs[0].metadata); // { source: "path/to/document.pdf", pdf: {...} }
+```
+
+### Split PDF by Pages
+
+```typescript
+const loader = new PDFLoader("document.pdf", {
+  splitPages: true, // Each page becomes a separate document
+});
+
+const docs = await loader.load();
+console.log(`Loaded ${docs.length} pages`);
+```
+
+### DOCX Loader
+
+Load Microsoft Word documents:
+
+```bash
+npm install mammoth
+```
+
+```typescript
+import { DocxLoader } from "@langchain/community/document_loaders/fs/docx";
+
+const loader = new DocxLoader("path/to/document.docx");
+const docs = await loader.load();
+```
+
+### CSV Loader
+
+Load CSV files with customizable parsing:
+
+```typescript
+import { CSVLoader } from "@langchain/community/document_loaders/fs/csv";
+
+const loader = new CSVLoader("data.csv");
+const docs = await loader.load();
+
+// Each row becomes a document
+console.log(docs[0].pageContent); // CSV row as formatted text
+```
+
+### Custom CSV Column
+
+```typescript
+const loader = new CSVLoader("data.csv", {
+  column: "content", // Use specific column as pageContent
+});
+```
+
+### Text Loader
+
+Load plain text files:
+
+```typescript
+import { TextLoader } from "@langchain/community/document_loaders/fs/text";
+
+const loader = new TextLoader("document.txt");
+const docs = await loader.load();
+```
+
+### JSON Loader
+
+Load and parse JSON files:
+
+```typescript
+import { JSONLoader } from "@langchain/community/document_loaders/fs/json";
+
+const loader = new JSONLoader(
+  "data.json",
+  ["/content"] // JSON pointer to extract specific fields
+);
+const docs = await loader.load();
+```
+
+### Directory Loader
+
+Load all files from a directory:
+
+```typescript
+import { DirectoryLoader } from "@langchain/community/document_loaders/fs/directory";
+import { TextLoader } from "@langchain/community/document_loaders/fs/text";
+
+const loader = new DirectoryLoader(
+  "path/to/documents",
+  {
+    ".txt": (path) => new TextLoader(path),
+    ".pdf": (path) => new PDFLoader(path),
+  }
+);
+
+const docs = await loader.load();
+```
+
+## Web Loaders
+
+### Cheerio Web Scraper
+
+Load and parse HTML from URLs:
+
+```bash
+npm install cheerio
+```
+
+```typescript
+import { CheerioWebBaseLoader } from "@langchain/community/document_loaders/web/cheerio";
+
+const loader = new CheerioWebBaseLoader(
+  "https://example.com/article"
+);
+
+const docs = await loader.load();
+console.log(docs[0].pageContent); // Extracted text content
+```
+
+### Custom Selector
+
+```typescript
+const loader = new CheerioWebBaseLoader(
+  "https://example.com",
+  {
+    selector: "article .content", // Extract specific elements
+  }
+);
+```
+
+### Puppeteer Web Scraper
+
+Load dynamic web pages that require JavaScript:
+
+```bash
+npm install puppeteer
+```
+
+```typescript
+import { PuppeteerWebBaseLoader } from "@langchain/community/document_loaders/web/puppeteer";
+
+const loader = new PuppeteerWebBaseLoader("https://example.com", {
+  launchOptions: {
+    headless: "shell",
+  },
+  gotoOptions: {
+    waitUntil: "domcontentloaded",
+  },
+});
+
+const docs = await loader.load();
+```
+
+### Firecrawl
+
+Use Firecrawl for production-ready web scraping:
+
+```bash
+npm install @mendable/firecrawl-js
+```
+
+```typescript
+import { FireCrawlLoader } from "@langchain/community/document_loaders/web/firecrawl";
+
+const loader = new FireCrawlLoader({
+  url: "https://example.com",
+  apiKey: process.env.FIRECRAWL_API_KEY,
+  mode: "scrape", // or "crawl" for multiple pages
+});
+
+const docs = await loader.load();
+```
+
+### GitHub Loader
+
+Load files from GitHub repositories:
+
+```typescript
+import { GithubRepoLoader } from "@langchain/community/document_loaders/web/github";
+
+const loader = new GithubRepoLoader(
+  "https://github.com/langchain-ai/langchainjs",
+  {
+    branch: "main",
+    recursive: true,
+    unknown: "warn",
+    accessToken: process.env.GITHUB_TOKEN,
+  }
+);
+
+const docs = await loader.load();
+```
+
+### Notion
+
+Load pages from Notion:
+
+```bash
+npm install @notionhq/client
+```
+
+```typescript
+import { NotionAPILoader } from "@langchain/community/document_loaders/web/notionapi";
+
+const loader = new NotionAPILoader({
+  clientOptions: {
+    auth: process.env.NOTION_TOKEN,
+  },
+  id: "page-id",
+  type: "page", // or "database"
+});
+
+const docs = await loader.load();
+```
+
+## Cloud Storage
+
+### AWS S3
+
+Load files from Amazon S3:
+
+```bash
+npm install @aws-sdk/client-s3
+```
+
+```typescript
+import { S3Loader } from "@langchain/community/document_loaders/web/s3";
+
+const loader = new S3Loader({
+  bucket: "my-bucket",
+  key: "path/to/file.txt",
+  s3Config: {
+    region: "us-east-1",
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    },
+  },
+});
+
+const docs = await loader.load();
+```
+
+### Azure Blob Storage
+
+Load files from Azure Blob Storage:
+
+```bash
+npm install @azure/storage-blob
+```
+
+```typescript
+import { AzureBlobStorageFileLoader } from "@langchain/community/document_loaders/web/azure_blob_storage_file";
+
+const loader = new AzureBlobStorageFileLoader({
+  azureConfig: {
+    connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
+    container: "my-container",
+    blobName: "document.pdf",
+  },
+});
+
+const docs = await loader.load();
+```
+
+### Google Cloud Storage
+
+Load files from Google Cloud Storage:
+
+```bash
+npm install @google-cloud/storage
+```
+
+```typescript
+import { GoogleCloudStorageLoader } from "@langchain/community/document_loaders/web/google_cloud_storage";
+
+const loader = new GoogleCloudStorageLoader({
+  bucket: "my-bucket",
+  key: "path/to/file.pdf",
+});
+
+const docs = await loader.load();
+```
+
+## Specialized Loaders
+
+### Unstructured API
+
+Use Unstructured.io for complex document parsing:
+
+```typescript
+import { UnstructuredLoader } from "@langchain/community/document_loaders/fs/unstructured";
+
+const loader = new UnstructuredLoader(
+  "document.pdf",
+  {
+    apiKey: process.env.UNSTRUCTURED_API_KEY,
+    strategy: "hi_res", // High resolution parsing
+  }
+);
+
+const docs = await loader.load();
+```
+
+### Obsidian
+
+Load Obsidian vault notes:
+
+```typescript
+import { ObsidianLoader } from "@langchain/community/document_loaders/fs/obsidian";
+
+const loader = new ObsidianLoader("path/to/vault");
+const docs = await loader.load();
+```
+
+### ChatGPT Conversation
+
+Load exported ChatGPT conversations:
+
+```typescript
+import { ChatGPTLoader } from "@langchain/community/document_loaders/fs/chatgpt";
+
+const loader = new ChatGPTLoader("conversations.json");
+const docs = await loader.load();
+```
+
+### Audio Transcription (Whisper)
+
+Transcribe audio files using OpenAI Whisper:
+
+```bash
+npm install @langchain/openai
+```
+
+```typescript
+import { OpenAIWhisperAudio } from "@langchain/community/document_loaders/fs/openai_whisper_audio";
+
+const loader = new OpenAIWhisperAudio("audio.mp3", {
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+const docs = await loader.load();
+console.log(docs[0].pageContent); // Transcribed text
+```
+
+## Additional Loaders
+
+<CardGroup cols={3}>
+  <Card title="Confluence">
+    Load pages from Atlassian Confluence
+  </Card>
+  
+  <Card title="Figma">
+    Load designs from Figma files
+  </Card>
+  
+  <Card title="Airtable">
+    Load records from Airtable bases
+  </Card>
+  
+  <Card title="GitBook">
+    Load documentation from GitBook
+  </Card>
+  
+  <Card title="Apify">
+    Load data from Apify scrapers
+  </Card>
+  
+  <Card title="AssemblyAI">
+    Transcribe audio with AssemblyAI
+  </Card>
+</CardGroup>
+
+## Common Patterns
+
+### Load and Split
+
+Combine loading with text splitting:
+
+```typescript
+import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+
+const loader = new PDFLoader("document.pdf");
+const docs = await loader.load();
+
+const splitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 1000,
+  chunkOverlap: 200,
+});
+
+const splitDocs = await splitter.splitDocuments(docs);
+```
+
+### Load into Vector Store
+
+```typescript
+import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
+import { OpenAIEmbeddings } from "@langchain/openai";
+import { PineconeStore } from "@langchain/pinecone";
+import { Pinecone } from "@pinecone-database/pinecone";
+
+const loader = new PDFLoader("document.pdf");
+const docs = await loader.load();
+
+const pinecone = new Pinecone({
+  apiKey: process.env.PINECONE_API_KEY,
+});
+const pineconeIndex = pinecone.Index("my-index");
+
+await PineconeStore.fromDocuments(
+  docs,
+  new OpenAIEmbeddings(),
+  { pineconeIndex }
+);
+```
+
+### Custom Metadata
+
+```typescript
+const loader = new PDFLoader("document.pdf");
+const docs = await loader.load();
+
+// Add custom metadata
+const enrichedDocs = docs.map(doc => ({
+  ...doc,
+  metadata: {
+    ...doc.metadata,
+    category: "technical",
+    uploadedAt: new Date().toISOString(),
+  },
+}));
+```
+
+## Best Practices
+
+1. **Choose the right loader**: Match the loader to your data source and format
+2. **Handle errors gracefully**: Wrap loader calls in try-catch blocks
+3. **Split large documents**: Use text splitters for better chunk sizing
+4. **Preserve metadata**: Keep source information for traceability
+5. **Batch processing**: Load multiple documents efficiently
+6. **Cache when possible**: Store loaded documents to avoid redundant processing
+
+## Document Structure
+
+All loaders return documents with this structure:
+
+```typescript
+interface Document {
+  pageContent: string; // The text content
+  metadata: Record<string, any>; // Source, page numbers, etc.
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Text Splitters" href="/guides/text-splitters">
+    Split documents into chunks
+  </Card>
+  
+  <Card title="Vector Stores" href="/integrations/vector-stores">
+    Store loaded documents as embeddings
+  </Card>
+  
+  <Card title="Embeddings" href="/integrations/embeddings">
+    Convert documents to embeddings
+  </Card>
+  
+  <Card title="Retrieval" href="/guides/retrieval">
+    Build RAG applications
+  </Card>
+</CardGroup>

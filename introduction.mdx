@@ -1,0 +1,161 @@
+---
+title: Introduction
+description: Learn about LangChain.js, the TypeScript framework for building LLM-powered applications
+---
+
+# Introduction to LangChain.js
+
+LangChain.js is a framework for building LLM-powered applications in TypeScript and JavaScript. It helps you chain together interoperable components and third-party integrations to simplify AI application development — all while future-proofing decisions as the underlying technology evolves.
+
+## What is LangChain.js?
+
+LangChain provides a standard interface for working with:
+- **Chat models** - Interact with LLMs from various providers
+- **Agents** - Build autonomous systems that can use tools and make decisions
+- **Prompts** - Manage and optimize prompt templates
+- **Embeddings** - Generate and work with vector representations
+- **Vector stores** - Store and retrieve documents efficiently
+- **Retrievers** - Pull relevant information from various sources
+- **Tools** - Extend LLM capabilities with external functions
+
+## Why Use LangChain.js?
+
+LangChain helps developers build applications powered by LLMs through a standard interface for agents, models, embeddings, vector stores, and more.
+
+<CardGroup cols={2}>
+  <Card title="Real-time Data Augmentation" icon="database">
+    Easily connect LLMs to diverse data sources and external/internal systems, drawing from LangChain's vast library of integrations with model providers, tools, vector stores, retrievers, and more.
+  </Card>
+  
+  <Card title="Model Interoperability" icon="arrows-rotate">
+    Swap models in and out as your engineering team experiments to find the best choice for your application's needs. As the industry frontier evolves, adapt quickly — LangChain's abstractions keep you moving without losing momentum.
+  </Card>
+  
+  <Card title="Rapid Prototyping" icon="bolt">
+    Quickly build and iterate on LLM applications with LangChain's modular, component-based architecture. Test different approaches and workflows without rebuilding from scratch, accelerating your development cycle.
+  </Card>
+  
+  <Card title="Production-Ready Features" icon="shield-check">
+    Deploy reliable applications with built-in support for monitoring, evaluation, and debugging through integrations like LangSmith. Scale with confidence using battle-tested patterns and best practices.
+  </Card>
+  
+  <Card title="Vibrant Community" icon="users">
+    Leverage a rich ecosystem of integrations, templates, and community-contributed components. Benefit from continuous improvements and stay up-to-date with the latest AI developments through an active open-source community.
+  </Card>
+  
+  <Card title="Flexible Abstractions" icon="layer-group">
+    Work at the level of abstraction that suits your needs - from high-level chains for quick starts to low-level components for fine-grained control. LangChain grows with your application's complexity.
+  </Card>
+</CardGroup>
+
+## The LangChain Ecosystem
+
+LangChain is part of a broader ecosystem of tools designed to help you build, test, and deploy LLM applications:
+
+<CardGroup cols={3}>
+  <Card title="LangSmith" icon="microscope" href="https://smith.langchain.com">
+    Unified developer platform for building, testing, and monitoring LLM applications. Debug poor-performing runs, evaluate agent trajectories, and gain production visibility.
+  </Card>
+  
+  <Card title="LangGraph" icon="diagram-project" href="https://docs.langchain.com/oss/javascript/langgraph/overview">
+    Build agents that can reliably handle complex tasks with customizable architecture, long-term memory, and human-in-the-loop workflows. Trusted by LinkedIn, Uber, Klarna, and GitLab.
+  </Card>
+  
+  <Card title="Deep Agents" icon="brain" href="https://docs.langchain.com/oss/javascript/deepagents/overview">
+    Build sophisticated "deep" agents that go beyond simple tool-calling loops with planning tools, sub-agent spawning, and file system access for complex, multi-step tasks.
+  </Card>
+</CardGroup>
+
+## Monorepo Structure
+
+LangChain.js is organized as a monorepo with multiple packages:
+
+### Core Packages
+
+| Package | Description |
+|---------|-------------|
+| `langchain` | Main package with agents, prompts, and orchestration features |
+| `@langchain/core` | Core abstractions and interfaces (base classes, runnables, messages) |
+| `@langchain/community` | Community-maintained integrations |
+| `@langchain/textsplitters` | Text splitting utilities for document processing |
+
+### Provider Packages
+
+First-party integrations are published as standalone packages:
+
+| Package | Description |
+|---------|-------------|
+| `@langchain/openai` | OpenAI and Azure OpenAI integration |
+| `@langchain/anthropic` | Anthropic (Claude) integration |
+| `@langchain/google-vertexai` | Google Vertex AI integration |
+| `@langchain/google-genai` | Google Generative AI integration |
+| `@langchain/mistralai` | Mistral AI integration |
+| `@langchain/cohere` | Cohere integration |
+| `@langchain/groq` | Groq integration |
+| `@langchain/ollama` | Ollama integration for local models |
+
+...and [many more](/integrations/providers) provider packages.
+
+## Supported Environments
+
+LangChain.js is written in TypeScript and works across multiple JavaScript runtimes:
+
+<CardGroup cols={2}>
+  <Card title="Node.js" icon="node-js">
+    Node.js 20.x, 22.x, and 24.x (both ESM and CommonJS)
+  </Card>
+  
+  <Card title="Edge Runtimes" icon="cloud">
+    Cloudflare Workers, Vercel Edge Functions, Supabase Edge Functions
+  </Card>
+  
+  <Card title="Browsers" icon="browser">
+    Modern web browsers with full TypeScript support
+  </Card>
+  
+  <Card title="Alternative Runtimes" icon="server">
+    Deno and Bun
+  </Card>
+</CardGroup>
+
+## The Runnable Interface
+
+At the heart of LangChain is the `Runnable` interface from `@langchain/core/runnables`. All major components extend `Runnable`, providing a consistent API:
+
+```typescript
+import { Runnable } from "@langchain/core/runnables";
+
+// All these methods are available on any Runnable
+await runnable.invoke(input);        // Single invocation
+await runnable.batch(inputs);        // Batch processing
+for await (const chunk of await runnable.stream(input)) {
+  // Streaming output
+}
+```
+
+This unified interface means you can compose different components together seamlessly using the pipe operator:
+
+```typescript
+const chain = prompt.pipe(model).pipe(outputParser);
+const result = await chain.invoke({ input: "Hello!" });
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/getting-started/installation">
+    Install LangChain.js and its dependencies
+  </Card>
+  
+  <Card title="Quickstart" icon="rocket" href="/getting-started/quickstart">
+    Build your first LangChain application
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="https://api.js.langchain.com">
+    Explore the complete API documentation
+  </Card>
+  
+  <Card title="Community" icon="discord" href="https://forum.langchain.com">
+    Join the LangChain community forum
+  </Card>
+</CardGroup>

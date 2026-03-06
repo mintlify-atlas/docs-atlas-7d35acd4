@@ -1,0 +1,461 @@
+---
+title: Context Management
+description: Manage scoped variables and configuration across runnable executions
+---
+
+LangChain.js provides context management utilities for sharing variables and configuration across runnable executions. Context variables are scoped to the current execution and automatically propagate to child runnables.
+
+## Overview
+
+Context management in LangChain.js uses AsyncLocalStorage (Node.js) or equivalent mechanisms to maintain execution context without explicit parameter passing. This enables:
+
+- **Scoped Variables**: Share data between components without prop drilling
+- **Callback Hooks**: Automatically attach callbacks to all executions
+- **Configuration Propagation**: Pass settings down the execution tree
+- **Isolation**: Each execution has its own context that doesn't leak
+
+## Installation
+
+```bash
+npm install @langchain/core
+```
+
+## Context Variables
+
+### Setting Context Variables
+
+Use `setContextVariable()` to store values that will be available to child runnables:
+
+```typescript
+import { setContextVariable } from "@langchain/core/context";
+import { RunnableLambda } from "@langchain/core/runnables";
+
+const runnable = RunnableLambda.from(async () => {
+  // Set a context variable
+  setContextVariable("user_id", "user-123");
+  setContextVariable("session_id", "session-456");
+  
+  // Call child runnable (context automatically propagates)
+  const result = await childRunnable.invoke({});
+  return result;
+});
+
+await runnable.invoke({});
+```
+
+### Getting Context Variables
+
+Use `getContextVariable()` to retrieve values set by parent runnables:
+
+```typescript
+import { getContextVariable } from "@langchain/core/context";
+import { RunnableLambda } from "@langchain/core/runnables";
+
+const childRunnable = RunnableLambda.from(() => {
+  // Access variables set by parent
+  const userId = getContextVariable<string>("user_id");
+  const sessionId = getContextVariable<string>("session_id");
+  
+  console.log(`User: ${userId}, Session: ${sessionId}`);
+  // Output: User: user-123, Session: session-456
+  
+  return { userId, sessionId };
+});
+```
+
+### Context Scoping
+
+Context variables follow these scoping rules:
+
+1. **Parent to Child**: Child runnables inherit parent context
+2. **Isolated Changes**: Changes in child don't affect parent
+3. **Sibling Isolation**: Sibling runnables have separate contexts
+
+```typescript
+import { 
+  setContextVariable, 
+  getContextVariable 
+} from "@langchain/core/context";
+import { RunnableLambda } from "@langchain/core/runnables";
+
+const nested = RunnableLambda.from(() => {
+  // "bar" because it was set by parent
+  console.log(getContextVariable("foo")); // "bar"
+  
+  // Override to "baz", but only for child runnables
+  setContextVariable("foo", "baz");
+  
+  // Now "baz" for this scope
+  return getContextVariable("foo"); // "baz"
+});
+
+const parent = RunnableLambda.from(async () => {
+  // Set context variable
+  setContextVariable("foo", "bar");
+  
+  const result = await nested.invoke({});
+  
+  // Still "bar" - child changes don't affect parent
+  console.log(getContextVariable("foo")); // "bar"
+  
+  return result;
+});
+
+// undefined - context variable not set yet
+console.log(getContextVariable("foo")); // undefined
+
+// Final return value is "baz"
+const result = await parent.invoke({});
+```
+
+## Formatted Strings with `context`
+
+The `context` template tag provides clean, formatted string creation with automatic indentation handling:
+
+```typescript
+import { context } from "@langchain/core/utils/context";
+
+const role = "agent";
+const prompt = context`
+  You are an ${role}.
+  Your task is to help users.
+`;
+
+console.log(prompt);
+// "You are an agent.\nYour task is to help users."
+```
+
+### Features
+
+#### Automatic Indentation Stripping
+
+```typescript
+const message = context`
+  This is a message.
+    This line is indented.
+  Back to normal.
+`;
+
+console.log(message);
+// "This is a message.\n  This line is indented.\nBack to normal."
+```
+
+#### Multi-line Value Alignment
+
+```typescript
+const items = "- Item 1\n- Item 2\n- Item 3";
+const message = context`
+  Shopping list:
+    ${items}
+  End of list.
+`;
+
+// The items are indented to match the surrounding context:
+// "Shopping list:\n    - Item 1\n    - Item 2\n    - Item 3\nEnd of list."
+```
+
+#### Escape Sequences
+
+```typescript
+const message = context`
+  Use \\n for newlines.
+  Use \\` for backticks.
+  Use \\$ for dollar signs.
+  Use \\{ for braces.
+`;
+
+console.log(message);
+// "Use \n for newlines.\nUse ` for backticks.\nUse $ for dollar signs.\nUse { for braces."
+```
+
+#### Object Interpolation
+
+```typescript
+const data = { name: "Alice", age: 30 };
+const message = context`
+  User data: ${data}
+`;
+
+console.log(message);
+// 'User data: {"name":"Alice","age":30}'
+```
+
+## Callback Hooks
+
+### Registering Configure Hooks
+
+Automatically attach callback handlers to all runnable executions:
+
+```typescript
+import { 
+  registerConfigureHook,
+  setContextVariable 
+} from "@langchain/core/context";
+import { BaseCallbackHandler } from "@langchain/core/callbacks";
+
+// Define a custom callback handler
+class MyTracer extends BaseCallbackHandler {
+  name = "MyTracer";
+  
+  async handleLLMStart(llm, prompts) {
+    console.log("LLM started with:", prompts);
+  }
+  
+  async handleLLMEnd(output) {
+    console.log("LLM finished:", output);
+  }
+}
+
+// Method 1: Using context variable
+const tracer = new MyTracer();
+registerConfigureHook({
+  contextVar: "my_tracer",
+});
+setContextVariable("my_tracer", tracer);
+
+// Now all runnable executions will use this tracer
+const result = await model.invoke("Hello!");
+// Output: LLM started with: ["Hello!"]
+// Output: LLM finished: ...
+```
+
+### Environment Variable Activation
+
+Activate handlers based on environment variables:
+
+```typescript
+import { registerConfigureHook } from "@langchain/core/context";
+import { BaseCallbackHandler } from "@langchain/core/callbacks";
+
+class DebugHandler extends BaseCallbackHandler {
+  name = "DebugHandler";
+  
+  async handleChainStart(chain, inputs) {
+    console.log("Chain started:", chain, inputs);
+  }
+}
+
+// Register hook with environment variable
+registerConfigureHook({
+  handlerClass: DebugHandler,
+  envVar: "LANGCHAIN_DEBUG",
+});
+
+// Handler is only active when env var is set
+process.env.LANGCHAIN_DEBUG = "true";
+
+const result = await chain.invoke({});
+// Output: Chain started: ...
+```
+
+### Hook Configuration Options
+
+```typescript
+interface ConfigureHook {
+  // Name of context variable containing the handler instance
+  contextVar?: string;
+  
+  // Whether child runs should inherit this handler
+  inheritable?: boolean;
+  
+  // Handler class to instantiate (required if using envVar)
+  handlerClass?: new (...args: any[]) => BaseCallbackHandler;
+  
+  // Environment variable name to control activation
+  envVar?: string;
+}
+```
+
+## Common Patterns
+
+### User Context Tracking
+
+```typescript
+import { setContextVariable, getContextVariable } from "@langchain/core/context";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { RunnableLambda } from "@langchain/core/runnables";
+
+// Middleware to set user context
+const withUserContext = (userId: string, runnable: Runnable) => {
+  return RunnableLambda.from(async (input) => {
+    setContextVariable("user_id", userId);
+    setContextVariable("request_time", new Date());
+    return runnable.invoke(input);
+  });
+};
+
+// Access in nested runnables
+const getUserInfo = RunnableLambda.from(() => {
+  const userId = getContextVariable<string>("user_id");
+  const requestTime = getContextVariable<Date>("request_time");
+  return { userId, requestTime };
+});
+
+// Usage
+const chain = withUserContext(
+  "user-123",
+  ChatPromptTemplate.fromTemplate("Hello {name}").pipe(model)
+);
+```
+
+### Request-Scoped Logging
+
+```typescript
+import { 
+  setContextVariable,
+  getContextVariable,
+  registerConfigureHook 
+} from "@langchain/core/context";
+import { BaseCallbackHandler } from "@langchain/core/callbacks";
+
+class RequestLogger extends BaseCallbackHandler {
+  name = "RequestLogger";
+  
+  async handleLLMStart(llm, prompts) {
+    const requestId = getContextVariable<string>("request_id");
+    console.log(`[${requestId}] LLM started`);
+  }
+  
+  async handleLLMEnd(output) {
+    const requestId = getContextVariable<string>("request_id");
+    console.log(`[${requestId}] LLM finished`);
+  }
+}
+
+// Register logger
+registerConfigureHook({
+  contextVar: "request_logger",
+});
+
+// Set up per request
+const handleRequest = async (requestId: string, input: string) => {
+  setContextVariable("request_id", requestId);
+  setContextVariable("request_logger", new RequestLogger());
+  
+  const result = await chain.invoke(input);
+  return result;
+};
+```
+
+### Feature Flags
+
+```typescript
+import { setContextVariable, getContextVariable } from "@langchain/core/context";
+import { RunnableLambda } from "@langchain/core/runnables";
+
+interface FeatureFlags {
+  useNewModel: boolean;
+  enableCaching: boolean;
+}
+
+const withFeatureFlags = (flags: FeatureFlags, runnable: Runnable) => {
+  return RunnableLambda.from(async (input) => {
+    setContextVariable("feature_flags", flags);
+    return runnable.invoke(input);
+  });
+};
+
+const conditionalRunnable = RunnableLambda.from(async (input) => {
+  const flags = getContextVariable<FeatureFlags>("feature_flags");
+  
+  if (flags?.useNewModel) {
+    return newModel.invoke(input);
+  }
+  return oldModel.invoke(input);
+});
+
+// Usage
+const chain = withFeatureFlags(
+  { useNewModel: true, enableCaching: false },
+  conditionalRunnable
+);
+```
+
+### A/B Testing
+
+```typescript
+import { setContextVariable, getContextVariable } from "@langchain/core/context";
+
+const withExperiment = (experimentId: string, variant: string, runnable: Runnable) => {
+  return RunnableLambda.from(async (input) => {
+    setContextVariable("experiment_id", experimentId);
+    setContextVariable("variant", variant);
+    
+    const result = await runnable.invoke(input);
+    
+    // Log experiment data
+    logExperiment({
+      experimentId,
+      variant,
+      input,
+      result,
+    });
+    
+    return result;
+  });
+};
+
+// Usage
+const variantA = withExperiment("prompt-test-1", "A", chainA);
+const variantB = withExperiment("prompt-test-1", "B", chainB);
+
+const result = Math.random() < 0.5 
+  ? await variantA.invoke(input)
+  : await variantB.invoke(input);
+```
+
+## Environment Support
+
+Context management requires AsyncLocalStorage or equivalent:
+
+- ✅ **Node.js** - Native AsyncLocalStorage support
+- ✅ **Deno** - Compatible AsyncLocalStorage
+- ✅ **Cloudflare Workers** - Supported
+- ❌ **Browser** - Limited support (no AsyncLocalStorage)
+- ⚠️ **Edge Runtimes** - Varies by platform
+
+## Best Practices
+
+1. **Use for Cross-Cutting Concerns**: Context variables are ideal for logging, tracing, auth, and configuration
+2. **Don't Overuse**: For direct parent-child data passing, use function parameters
+3. **Type Safety**: Use TypeScript generics with `getContextVariable<T>()`
+4. **Clean Naming**: Use namespaced keys like `"app:user_id"` to avoid collisions
+5. **Document Context Dependencies**: Make it clear when functions depend on context
+6. **Test Context Isolation**: Verify that parallel executions don't interfere
+7. **Avoid Side Effects**: Don't use context variables for critical business logic
+
+## Debugging
+
+Enable debugging to see context variable flow:
+
+```typescript
+import { 
+  setContextVariable,
+  getContextVariable 
+} from "@langchain/core/context";
+
+// Debug helper
+const debugContext = (label: string) => {
+  return RunnableLambda.from((input) => {
+    console.log(`[${label}] Context:`, {
+      user_id: getContextVariable("user_id"),
+      session_id: getContextVariable("session_id"),
+    });
+    return input;
+  });
+};
+
+// Use in chain
+const chain = debugContext("start")
+  .pipe(someRunnable)
+  .pipe(debugContext("middle"))
+  .pipe(anotherRunnable)
+  .pipe(debugContext("end"));
+```
+
+## Related
+
+- [Callbacks](/api/core/callbacks) - Callback system for tracing and logging
+- [Runnables](/api/core/runnables) - Base runnable interface
+- [RunnableConfig](/api/core/runnables/config) - Configuration options for runnables
+- [LangSmith Tracing](/guides/tracing) - Distributed tracing and observability

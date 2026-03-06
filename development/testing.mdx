@@ -1,0 +1,455 @@
+---
+title: Testing
+description: Learn about the testing infrastructure in LangChain.js
+---
+
+LangChain.js uses [Vitest](https://vitest.dev/) as its testing framework. The project includes several types of tests to ensure code quality and functionality.
+
+## Test Types
+
+### Unit Tests
+
+Unit tests cover modular logic that doesn't require calls to external APIs.
+
+**Naming convention**: `*.test.ts`
+
+**Location**: Place in a `tests/` folder alongside the module being tested
+
+**Example**:
+
+```typescript
+import { test, expect, describe } from "vitest";
+import { FakeChatModel } from "@langchain/core/utils/testing";
+
+test("should invoke fake chat model", async () => {
+  const model = new FakeChatModel({});
+  const result = await model.invoke([["human", "Hello!"]]);
+  expect(result.content).toBe("Hello!");
+});
+
+describe("MyComponent", () => {
+  test("handles input correctly", () => {
+    // Test implementation
+  });
+
+  test("throws error on invalid input", () => {
+    expect(() => myFunction(null)).toThrow();
+  });
+});
+```
+
+**Running unit tests**:
+
+```bash
+pnpm --filter langchain test
+pnpm --filter @langchain/core test
+```
+
+### Integration Tests
+
+Integration tests cover logic that requires calls to external APIs.
+
+**Naming convention**: `*.int.test.ts`
+
+**Location**: Place in a `tests/` folder alongside the module being tested
+
+**Example**:
+
+```typescript
+import { describe, test, expect } from "vitest";
+import { ChatOpenAI } from "../index.js";
+import { HumanMessage } from "@langchain/core/messages";
+
+test("Test ChatOpenAI Generate", async () => {
+  const chat = new ChatOpenAI({
+    model: "gpt-4o-mini",
+    maxTokens: 10,
+  });
+  const message = new HumanMessage("Hello!");
+  const result = await chat.invoke([message]);
+  expect(typeof result.content).toBe("string");
+});
+```
+
+**Environment setup**:
+
+Most integration tests require API credentials. Create a `.env` file based on [`.env.example`](https://github.com/langchain-ai/langchainjs/blob/main/libs/langchain/.env.example):
+
+```bash
+# Example .env file
+OPENAI_API_KEY=your_key_here
+ANTHROPIC_API_KEY=your_key_here
+PINECONE_API_KEY=your_key_here
+```
+
+**Running integration tests**:
+
+```bash
+# All integration tests
+pnpm --filter langchain test:integration
+
+# Single integration test
+pnpm --filter langchain test:single src/chat_models/tests/index.int.test.ts
+```
+
+<Warning>
+Integration tests can be slow and may incur API costs. We recommend running specific tests with `test:single` during development.
+</Warning>
+
+### Type Tests
+
+Type tests verify that TypeScript types work correctly using `expectTypeOf` from Vitest.
+
+**Naming convention**: `*.test-d.ts`
+
+**Example**:
+
+```typescript
+import { expectTypeOf } from "vitest";
+import { ChatOpenAI } from "../index.js";
+import type { AIMessage } from "@langchain/core/messages";
+
+// Assert return type
+expectTypeOf(model.invoke).returns.toMatchTypeOf<Promise<AIMessage>>();
+
+// Assert parameter types
+expectTypeOf(model.invoke).parameter(0).toMatchTypeOf<BaseMessage[]>();
+
+// Assert generic types resolve correctly
+type Result = Awaited<ReturnType<typeof model.invoke>>;
+expectTypeOf<Result>().toMatchTypeOf<AIMessage>();
+```
+
+Type tests ensure:
+- Public APIs have correct type signatures
+- Generic types resolve correctly
+- Type inference works as expected
+
+**Running type tests**:
+
+Type tests run automatically with unit tests:
+
+```bash
+pnpm --filter langchain test
+```
+
+Learn more in the [Vitest type testing docs](https://vitest.dev/guide/testing-types.html).
+
+### Standard Tests
+
+Standard tests ensure provider integrations conform to LangChain interfaces. They're provided by the `@langchain/standard-tests` package.
+
+**Naming convention**: `*.standard.test.ts` (unit) and `*.standard.int.test.ts` (integration)
+
+**Example for chat models**:
+
+```typescript
+import { ChatModelUnitTests } from "@langchain/standard-tests";
+import { AIMessageChunk } from "@langchain/core/messages";
+import { MyChatModel } from "../index.js";
+
+class MyChatModelStandardUnitTests extends ChatModelUnitTests<
+  MyChatModelCallOptions,
+  AIMessageChunk
+> {
+  constructor() {
+    super({
+      Cls: MyChatModel,
+      chatModelHasToolCalling: true,
+      chatModelHasStructuredOutput: true,
+      constructorArgs: {
+        model: "my-model",
+      },
+    });
+  }
+
+  // Override specific tests if needed
+  async testModelCanStreamUsage() {
+    // Custom implementation
+  }
+}
+
+const testClass = new MyChatModelStandardUnitTests();
+
+// Run all standard tests
+test("MyChatModel standard tests", async () => {
+  await testClass.runTests();
+});
+```
+
+**Running standard tests**:
+
+```bash
+# Unit standard tests
+pnpm --filter @langchain/openai test:standard:unit
+
+# Integration standard tests  
+pnpm --filter @langchain/openai test:standard:int
+
+# All standard tests
+pnpm test:standard
+```
+
+Standard tests verify:
+- Streaming support
+- Tool calling (if supported)
+- Structured output (if supported)
+- Proper error handling
+- Callback integration
+
+## Vitest Configuration
+
+Each package has a `vitest.config.ts` file that configures test behavior.
+
+**Example configuration** (`libs/langchain-core/vitest.config.ts`):
+
+```typescript
+import {
+  configDefaults,
+  defineConfig,
+  type UserConfigExport,
+} from "vitest/config";
+import pkg from "./package.json" with { type: "json" };
+
+const define = { __PKG_VERSION__: JSON.stringify(pkg.version) };
+
+export default defineConfig((env) => {
+  const common: UserConfigExport = {
+    test: {
+      environment: "node",
+      hideSkippedTests: true,
+      globals: true,
+      testTimeout: 30_000,
+      maxWorkers: 0.5,
+      exclude: ["**/*.int.test.ts", ...configDefaults.exclude],
+      setupFiles: ["dotenv/config", "vitest.setup.js"],
+    },
+  };
+
+  // Integration test mode
+  if (env.mode === "int") {
+    return {
+      define,
+      test: {
+        ...common.test,
+        globals: false,
+        testTimeout: 100_000,
+        exclude: configDefaults.exclude,
+        include: ["**/*.int.test.ts"],
+        name: "int",
+      },
+    } satisfies UserConfigExport;
+  }
+
+  // Unit test mode (default)
+  return {
+    define,
+    test: {
+      ...common.test,
+      include: configDefaults.include,
+      typecheck: { enabled: true },
+    },
+  } satisfies UserConfigExport;
+});
+```
+
+**Key configuration options**:
+
+- `environment: "node"` - Run tests in Node.js environment
+- `testTimeout: 30_000` - 30 second timeout for unit tests
+- `testTimeout: 100_000` - 100 second timeout for integration tests
+- `maxWorkers: 0.5` - Use 50% of available CPU cores
+- `exclude: ["**/*.int.test.ts"]` - Skip integration tests by default
+- `setupFiles` - Load environment variables from `.env`
+- `typecheck: { enabled: true }` - Run type tests alongside unit tests
+
+## Running Tests
+
+### Basic Commands
+
+```bash
+# Run all unit tests
+pnpm test:unit
+
+# Run unit tests for specific package
+pnpm --filter langchain test
+pnpm --filter @langchain/core test
+
+# Run integration tests
+pnpm --filter langchain test:integration
+
+# Run single test file
+pnpm --filter langchain test:single src/tests/my-test.test.ts
+
+# Watch mode
+pnpm --filter langchain test:watch
+
+# With coverage
+pnpm --filter langchain test --coverage
+```
+
+### Filtered Tests
+
+Run tests matching a pattern:
+
+```bash
+pnpm --filter @langchain/core test --grep "should handle"
+```
+
+### Environment Tests
+
+Test compatibility across different JavaScript environments:
+
+```bash
+# Test exports in Docker (Node.js, Edge, Browser, etc.)
+pnpm test:exports:docker
+```
+
+## Writing Good Tests
+
+### Test Organization
+
+Organize tests in a `tests/` folder alongside your source code:
+
+```txt
+src/
+├── my_module.ts
+└── tests/
+    ├── my_module.test.ts         # Unit tests
+    ├── my_module.int.test.ts     # Integration tests
+    ├── my_module.test-d.ts       # Type tests
+    ├── my_module.standard.test.ts        # Standard unit tests
+    └── my_module.standard.int.test.ts    # Standard integration tests
+```
+
+### Use Fake Components
+
+For unit tests, use fake implementations to avoid external dependencies:
+
+```typescript
+import { FakeChatModel } from "@langchain/core/utils/testing";
+import { FakeListLLM } from "@langchain/core/utils/testing";
+
+test("test with fake chat model", async () => {
+  const model = new FakeChatModel({});
+  // Test your logic
+});
+
+test("test with fake LLM", async () => {
+  const llm = new FakeListLLM({ responses: ["response 1", "response 2"] });
+  // Test your logic
+});
+```
+
+### Test Async Operations
+
+Always await async operations and handle errors:
+
+```typescript
+test("async operation", async () => {
+  const result = await myAsyncFunction();
+  expect(result).toBeDefined();
+});
+
+test("handles errors", async () => {
+  await expect(failingFunction()).rejects.toThrow("Expected error");
+});
+```
+
+### Test Streaming
+
+For streaming components, test the async generator:
+
+```typescript
+test("streams responses", async () => {
+  const model = new MyChatModel();
+  const chunks: string[] = [];
+
+  for await (const chunk of await model.stream("test")) {
+    chunks.push(chunk.content);
+  }
+
+  expect(chunks.length).toBeGreaterThan(0);
+  expect(chunks.join("")).toContain("expected content");
+});
+```
+
+### Mock External Dependencies
+
+Use Vitest mocks for external dependencies:
+
+```typescript
+import { vi } from "vitest";
+
+vi.mock("my-external-sdk", () => ({
+  MyClient: vi.fn(() => ({
+    doSomething: vi.fn().mockResolvedValue("mocked result"),
+  })),
+}));
+
+test("mocked dependency", async () => {
+  // Test with mocked SDK
+});
+```
+
+## CI/CD Testing
+
+Tests run automatically in GitHub Actions:
+
+- Unit tests run on every PR
+- Integration tests run on specific packages
+- Environment tests verify cross-platform compatibility
+- Dependency range tests ensure compatibility with different versions
+
+See `.github/workflows/` for CI configuration.
+
+## Debugging Tests
+
+### VS Code Debugging
+
+Add to `.vscode/launch.json`:
+
+```json
+{
+  "type": "node",
+  "request": "launch",
+  "name": "Debug Vitest Tests",
+  "runtimeExecutable": "pnpm",
+  "runtimeArgs": ["--filter", "@langchain/core", "test"],
+  "console": "integratedTerminal",
+  "internalConsoleOptions": "neverOpen"
+}
+```
+
+### Verbose Output
+
+Run with verbose logging:
+
+```bash
+pnpm --filter langchain test -- --reporter=verbose
+```
+
+### Isolate Specific Tests
+
+Use `.only` to run a single test:
+
+```typescript
+test.only("this test only", () => {
+  // Only this test will run
+});
+```
+
+<Warning>
+Remember to remove `.only` before committing!
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Contributing" icon="code-pull-request" href="/development/contributing">
+    Learn the contribution workflow
+  </Card>
+  <Card title="Creating Integrations" icon="puzzle-piece" href="/development/creating-integrations">
+    Build new integration packages
+  </Card>
+</CardGroup>

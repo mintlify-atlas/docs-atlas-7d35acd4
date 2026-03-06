@@ -1,0 +1,238 @@
+---
+title: Contributing to LangChain.js
+description: Learn how to contribute to LangChain.js - from setup to submitting PRs
+---
+
+Thank you for your interest in contributing to LangChain.js! Whether you're fixing bugs, adding features, improving documentation, or sharing feedback, your involvement helps make LangChain and LangGraph better for everyone.
+
+## Ways to Contribute
+
+### Report Bugs
+
+1. **Search existing issues**: Check [GitHub Issues](https://github.com/langchain-ai/langchainjs/issues) to see if the bug has already been reported
+2. **Create a new issue**: Include a [minimal reproducible example](https://stackoverflow.com/help/minimal-reproducible-example) and follow the issue template
+3. **Be patient**: Maintainers will triage the issue and may ask for additional information
+
+<Note>
+If a maintainer cannot reproduce the issue, it's unlikely to be addressed in a timely manner.
+</Note>
+
+### Request Features
+
+1. **Search existing requests**: Look through [GitHub Issues](https://github.com/langchain-ai/langchainjs/issues) for similar feature requests
+2. **Start a discussion**: Propose your idea in the appropriate category for community feedback
+3. **Describe the use case**: Explain why it would be valuable, provide examples or mockups, and outline test cases
+
+### Contribute Code
+
+If you have the skills and time, we'd love your help with code contributions!
+
+- **Find an issue**: Look for issues labeled ["good first issue"](https://github.com/langchain-ai/langchainjs/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) or ["help wanted"](https://github.com/langchain-ai/langchainjs/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
+- **Assign yourself**: Comment on the issue or ask a maintainer to assign it to you to avoid duplicate work
+
+### Add an Integration
+
+Integrations are a core component of LangChain. Contributing an integration helps expand LangChain's ecosystem and makes your service discoverable to millions of developers.
+
+**Why contribute an integration?**
+
+- **Discoverability**: LangChain has over 20 million monthly downloads
+- **Interoperability**: Standard interfaces allow developers to easily swap components
+- **Best Practices**: Built-in support for streaming, async operations, and callbacks
+
+See the [Creating Integrations](/development/creating-integrations) page for detailed instructions.
+
+<Warning>
+New integrations are **no longer accepted** in the `@langchain/community` package. They must be published as standalone packages.
+</Warning>
+
+## Getting Started
+
+### Prerequisites
+
+- **Node.js v24.x** (check with `node -v`)
+- **pnpm v10.14.0** (package manager)
+
+If you have [nvm](https://github.com/nvm-sh/nvm) installed, switch to the recommended Node.js version:
+
+```bash
+nvm use
+```
+
+### Initial Setup
+
+1. **Fork and clone** the repository using the ["fork and pull request"](https://docs.github.com/en/get-started/quickstart/contributing-to-projects) workflow
+
+2. **Install dependencies** from the project root:
+
+```bash
+cd langchainjs
+pnpm install
+```
+
+3. **Build the core package** (required before working on other packages):
+
+```bash
+pnpm --filter @langchain/core build
+```
+
+## Common Tasks
+
+All commands run from the project root using `pnpm --filter <package>` to target specific workspaces.
+
+### Package Filters
+
+- `--filter langchain` - main `langchain` package
+- `--filter @langchain/core` - core package
+- `--filter @langchain/community` - community integrations
+- `--filter @langchain/openai` - OpenAI integration (similar for other providers)
+
+### Building
+
+Build a specific package:
+
+```bash
+pnpm --filter langchain build
+pnpm --filter @langchain/core build
+```
+
+Build in watch mode:
+
+```bash
+pnpm watch
+```
+
+### Linting
+
+Run the linter:
+
+```bash
+pnpm --filter langchain lint
+pnpm --filter @langchain/community lint
+```
+
+Auto-fix linting issues:
+
+```bash
+pnpm --filter langchain lint:fix
+```
+
+### Formatting
+
+Format code:
+
+```bash
+pnpm --filter langchain format
+```
+
+Check formatting without fixing:
+
+```bash
+pnpm --filter langchain format:check
+```
+
+### Testing
+
+See the [Testing](/development/testing) page for comprehensive testing documentation.
+
+**Unit tests** (no external API calls):
+
+```bash
+pnpm --filter langchain test
+pnpm --filter @langchain/core test
+```
+
+**Integration tests** (require API credentials):
+
+```bash
+pnpm --filter langchain test:integration
+```
+
+**Single test file**:
+
+```bash
+pnpm --filter <package> test:single <path-to-test>
+```
+
+<Info>
+Most integration tests require credentials. Set up a `.env` file based on [`.env.example`](https://github.com/langchain-ai/langchainjs/blob/main/libs/langchain/.env.example).
+</Info>
+
+## Pull Request Guidelines
+
+When submitting a pull request:
+
+1. **Fill out the PR template** - Describe what your PR does, why it's needed, and provide context
+2. **Link related issues** - Use closing keywords like `Fixes #123` to auto-close issues
+3. **Keep PRs focused** - One feature or fix per PR makes review easier and faster
+4. **Add tests** - Include unit tests for new functionality; integration tests for external APIs
+5. **Update documentation** - If your change affects public APIs, update the relevant docs
+6. **Run checks locally** - Ensure `pnpm lint`, `pnpm format:check`, and `pnpm test` pass before pushing
+
+### Review Process
+
+- A maintainer will review your PR and may request changes
+- Please respond to feedback in a timely manner
+- Once approved, a maintainer will merge your PR
+
+<Tip>
+Include your Twitter handle in the PR description if you'd like a shout-out when your contribution is released!
+</Tip>
+
+## Getting Help
+
+If you encounter issues with environment setup, linting, documentation, or other pain points:
+
+- **Contact a maintainer** - We want to help you get unblocked and improve the process for future contributors
+- **Don't let standards block you** - If linting or formatting is difficult, reach out for help. We don't want these to prevent good code from being contributed
+
+## Communication
+
+- **[LangChain Forum](https://forum.langchain.com)** - Technical questions, ideas, and feedback
+- **[GitHub Issues](https://github.com/langchain-ai/langchainjs/issues)** - Bug reports and feature requests
+- **[Slack](https://www.langchain.com/join-community)** - LangChain Community
+
+## Release Process
+
+LangChain has an ad hoc release process with frequent releases to [npm](https://www.npmjs.com/package/langchain).
+
+### Dev Releases
+
+Maintainers can publish dev releases for testing unreleased changes:
+
+1. Go to [Actions → 📦 Publish](https://github.com/langchain-ai/langchainjs/actions/workflows/release.yml)
+2. Click "Run workflow"
+3. Select the branch (defaults to `main`)
+4. Optionally change the npm tag (defaults to `dev`)
+5. Click "Run workflow"
+
+**Version format**: `x.y.z-<tag>.<short-sha>` (e.g., `1.1.0-dev.abc1234`)
+
+**Install a dev release**:
+
+```bash
+# Latest dev release
+npm install @langchain/core@dev
+
+# Specific dev version
+npm install @langchain/core@1.1.0-dev.abc1234
+```
+
+Dev releases are useful for:
+- Testing bug fixes before official release
+- Validating new features in downstream projects
+- CI/CD pipelines that need to test against latest changes
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Creating Integrations" icon="puzzle-piece" href="/development/creating-integrations">
+    Learn how to create new integration packages
+  </Card>
+  <Card title="Testing" icon="vial" href="/development/testing">
+    Understand the testing infrastructure
+  </Card>
+  <Card title="Monorepo Structure" icon="folder-tree" href="/development/monorepo-structure">
+    Explore the workspace organization
+  </Card>
+</CardGroup>

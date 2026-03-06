@@ -1,0 +1,479 @@
+---
+title: Building Agents
+description: Learn how to build AI agents that can reason, use tools, and solve complex tasks with LangChain.js
+---
+
+## Introduction
+
+Agents are systems that use language models to reason about which actions to take and then execute those actions. They can use tools, make decisions, and work toward goals autonomously.
+
+In LangChain.js, agents combine:
+- **Chat models** for reasoning and decision-making
+- **Tools** for taking actions (API calls, database queries, etc.)
+- **Memory** for maintaining conversation context
+- **Execution loops** for iterative problem-solving
+
+## Quick Start
+
+The simplest way to create an agent is using the `createAgent` function:
+
+```typescript
+import { createAgent, tool } from "langchain";
+import { ChatOpenAI } from "@langchain/openai";
+import { z } from "zod";
+
+// Define a tool
+const weatherTool = tool(
+  ({ location }) => {
+    // Simulated weather data
+    const weather = {
+      NYC: "72°F and sunny",
+      London: "55°F and rainy"
+    };
+    return weather[location] || "Weather data unavailable";
+  },
+  {
+    name: "get_weather",
+    description: "Get current weather for a location",
+    schema: z.object({
+      location: z.string().describe("City name")
+    })
+  }
+);
+
+// Create the agent
+const agent = createAgent({
+  model: new ChatOpenAI({ model: "gpt-4o-mini" }),
+  tools: [weatherTool]
+});
+
+// Use the agent
+const result = await agent.invoke({
+  messages: "What's the weather in NYC?"
+});
+
+console.log(result.messages.at(-1)?.content);
+// "The weather in NYC is currently 72°F and sunny."
+```
+
+## Agent Components
+
+### AgentAction
+
+Represents an action the agent decides to take:
+
+```typescript
+type AgentAction = {
+  tool: string;                    // Name of the tool to use
+  toolInput: string | Record<string, any>;  // Input to the tool
+  log: string;                     // Reasoning for this action
+};
+```
+
+### AgentFinish
+
+Represents the agent's final response:
+
+```typescript
+type AgentFinish = {
+  returnValues: Record<string, any>;  // Final output values
+  log: string;                        // Final reasoning
+};
+```
+
+### AgentStep
+
+Tracks an action and its result:
+
+```typescript
+type AgentStep = {
+  action: AgentAction;    // The action taken
+  observation: string;    // Result from the tool
+};
+```
+
+## Building Custom Agents
+
+### Multi-Tool Agent
+
+Create an agent that can use multiple tools:
+
+```typescript
+import { createAgent, tool, HumanMessage } from "langchain";
+import { ChatOpenAI } from "@langchain/openai";
+import { z } from "zod";
+
+// Search tool
+const searchTool = tool(
+  async ({ query }) => {
+    // Integration with a search API
+    return `Search results for: ${query}`;
+  },
+  {
+    name: "web_search",
+    description: "Search the web for information",
+    schema: z.object({
+      query: z.string().describe("Search query")
+    })
+  }
+);
+
+// Calculator tool
+const calculatorTool = tool(
+  ({ expression }) => {
+    return eval(expression).toString();
+  },
+  {
+    name: "calculator",
+    description: "Evaluate mathematical expressions",
+    schema: z.object({
+      expression: z.string().describe("Math expression to evaluate")
+    })
+  }
+);
+
+// Database tool
+const databaseTool = tool(
+  async ({ query }) => {
+    // Query your database
+    return "Database query results";
+  },
+  {
+    name: "database_query",
+    description: "Query the product database",
+    schema: z.object({
+      query: z.string().describe("SQL query")
+    })
+  }
+);
+
+const agent = createAgent({
+  model: new ChatOpenAI({ 
+    model: "gpt-4o",
+    temperature: 0
+  }),
+  tools: [searchTool, calculatorTool, databaseTool]
+});
+
+const result = await agent.invoke({
+  messages: [
+    new HumanMessage(
+      "Search for the current price of Bitcoin, multiply it by 100, and save to the database"
+    )
+  ]
+});
+```
+
+### Agent with Memory
+
+Add persistent memory to your agent:
+
+```typescript
+import { createAgent, tool } from "langchain";
+import { ChatOpenAI } from "@langchain/openai";
+import { InMemoryStore } from "@langchain/langgraph";
+import { z } from "zod";
+
+const saveMemory = tool(
+  async ({ key, value }, config) => {
+    await config.store?.put(["memories"], key, value);
+    return "Memory saved successfully";
+  },
+  {
+    name: "save_memory",
+    description: "Save information to memory",
+    schema: z.object({
+      key: z.string(),
+      value: z.string()
+    })
+  }
+);
+
+const recallMemory = tool(
+  async ({ key }, config) => {
+    const value = await config.store?.get(["memories"], key);
+    return value || "No memory found";
+  },
+  {
+    name: "recall_memory",
+    description: "Recall information from memory",
+    schema: z.object({
+      key: z.string()
+    })
+  }
+);
+
+const agent = createAgent({
+  model: new ChatOpenAI({ model: "gpt-4o" }),
+  tools: [saveMemory, recallMemory],
+  store: new InMemoryStore()
+});
+
+// First conversation
+await agent.invoke({
+  messages: "Remember that my favorite color is blue"
+});
+
+// Later conversation
+const result = await agent.invoke({
+  messages: "What's my favorite color?"
+});
+```
+
+## Streaming Agent Responses
+
+Stream agent execution to show progress in real-time:
+
+```typescript
+const agent = createAgent({
+  model: new ChatOpenAI({ model: "gpt-4o-mini" }),
+  tools: [weatherTool, calculatorTool]
+});
+
+const stream = await agent.stream(
+  {
+    messages: "What's the weather in London? If it's below 60°F, calculate how cold it is."
+  },
+  { streamMode: "values" }
+);
+
+for await (const chunk of stream) {
+  const lastMessage = chunk.messages.at(-1);
+  
+  if (lastMessage?.getType() === "ai") {
+    if (lastMessage.content) {
+      console.log("Assistant:", lastMessage.content);
+    }
+    if ("tool_calls" in lastMessage && lastMessage.tool_calls?.length > 0) {
+      for (const toolCall of lastMessage.tool_calls) {
+        console.log(`Calling tool: ${toolCall.name}`);
+        console.log(`Arguments:`, toolCall.args);
+      }
+    }
+  } else if (lastMessage?.getType() === "tool") {
+    console.log("Tool result:", lastMessage.content);
+  }
+}
+```
+
+## Agent Execution Control
+
+### Setting Iteration Limits
+
+Prevent infinite loops by limiting agent iterations:
+
+```typescript
+const agent = createAgent({
+  model: new ChatOpenAI({ model: "gpt-4o" }),
+  tools: [searchTool],
+  // Limit to 5 tool calls
+  maxIterations: 5
+});
+```
+
+### Handling Errors
+
+Implement error handling in your agent:
+
+```typescript
+try {
+  const result = await agent.invoke({
+    messages: "Perform a complex task"
+  });
+  console.log(result.messages.at(-1)?.content);
+} catch (error) {
+  if (error.message.includes("Agent stopped due to iteration limit")) {
+    console.error("Agent exceeded maximum iterations");
+  } else if (error.message.includes("Agent stopped due to time limit")) {
+    console.error("Agent timed out");
+  } else {
+    console.error("Agent error:", error);
+  }
+}
+```
+
+## Advanced Agent Patterns
+
+### Multi-Agent Systems
+
+Create specialized agents that work together:
+
+```typescript
+import { createAgent } from "langchain";
+import { ChatOpenAI } from "@langchain/openai";
+
+// Research specialist agent
+const researchAgent = createAgent({
+  model: new ChatOpenAI({ model: "gpt-4o" }),
+  tools: [searchTool, databaseTool],
+  systemPrompt: "You are a research specialist. Gather and analyze information."
+});
+
+// Writing specialist agent  
+const writerAgent = createAgent({
+  model: new ChatOpenAI({ model: "gpt-4o" }),
+  tools: [],
+  systemPrompt: "You are a writing specialist. Create clear, engaging content."
+});
+
+// Coordinator agent
+const coordinatorAgent = createAgent({
+  model: new ChatOpenAI({ model: "gpt-4o" }),
+  tools: [
+    tool(
+      async ({ task }) => {
+        const result = await researchAgent.invoke({ messages: task });
+        return result.messages.at(-1)?.content;
+      },
+      {
+        name: "research",
+        description: "Delegate research tasks",
+        schema: z.object({ task: z.string() })
+      }
+    ),
+    tool(
+      async ({ content }) => {
+        const result = await writerAgent.invoke({ messages: content });
+        return result.messages.at(-1)?.content;
+      },
+      {
+        name: "write",
+        description: "Delegate writing tasks",
+        schema: z.object({ content: z.string() })
+      }
+    )
+  ]
+});
+
+const result = await coordinatorAgent.invoke({
+  messages: "Research the latest AI trends and write a blog post about them"
+});
+```
+
+### Agent with Structured Output
+
+Get structured responses from your agent:
+
+```typescript
+import { z } from "zod";
+
+const AnalysisReport = z.object({
+  summary: z.string().describe("Brief summary of findings"),
+  keyPoints: z.array(z.string()).describe("Main points discovered"),
+  confidence: z.number().min(0).max(1).describe("Confidence score")
+});
+
+const agent = createAgent({
+  model: new ChatOpenAI({ model: "gpt-4o" }),
+  tools: [searchTool],
+  responseFormat: AnalysisReport
+});
+
+const result = await agent.invoke({
+  messages: "Research and analyze the impact of AI on healthcare"
+});
+
+console.log(result.structuredResponse);
+// {
+//   summary: "AI is transforming healthcare through...",
+//   keyPoints: ["Improved diagnostics", "Personalized treatment", ...],
+//   confidence: 0.85
+// }
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Design Clear Tool Descriptions">
+    Tool descriptions guide the agent's decision-making:
+
+    ```typescript
+    const tool = tool(
+      async ({ query }) => { /* ... */ },
+      {
+        name: "database_query",
+        // Clear, specific description
+        description: "Query the product database. Use this when you need to find product information, pricing, or inventory levels.",
+        schema: z.object({
+          query: z.string().describe("A SQL SELECT query. Only use SELECT statements.")
+        })
+      }
+    );
+    ```
+  </Accordion>
+
+  <Accordion title="Add System Prompts">
+    Guide agent behavior with system prompts:
+
+    ```typescript
+    const agent = createAgent({
+      model: new ChatOpenAI({ model: "gpt-4o" }),
+      tools: [tool1, tool2],
+      systemPrompt: `You are a helpful customer service agent.
+      
+      Guidelines:
+      - Always be polite and professional
+      - Use tools to gather accurate information
+      - If you're unsure, ask clarifying questions
+      - Provide sources when making factual claims`
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Implement Guardrails">
+    Add safety checks to prevent unwanted behavior:
+
+    ```typescript
+    const safeDatabaseTool = tool(
+      async ({ query }) => {
+        // Validate query before execution
+        if (!query.toLowerCase().startsWith("select")) {
+          throw new Error("Only SELECT queries are allowed");
+        }
+        if (query.toLowerCase().includes("drop") || 
+            query.toLowerCase().includes("delete")) {
+          throw new Error("Destructive operations not allowed");
+        }
+        return executeQuery(query);
+      },
+      { /* ... */ }
+    );
+    ```
+  </Accordion>
+
+  <Accordion title="Monitor and Log">
+    Track agent behavior for debugging and improvement:
+
+    ```typescript
+    import { LangChainTracer } from "@langchain/core/tracers/tracer_langchain";
+
+    const result = await agent.invoke(
+      { messages: "Your query" },
+      {
+        callbacks: [
+          new LangChainTracer({
+            projectName: "my-agent-project"
+          })
+        ]
+      }
+    );
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Creating Tools" icon="wrench" href="/guides/creating-tools">
+    Learn how to build custom tools for your agents
+  </Card>
+  <Card title="Memory and History" icon="brain" href="/guides/memory-and-history">
+    Add conversation memory to your agents
+  </Card>
+  <Card title="Streaming" icon="wave-pulse" href="/guides/streaming">
+    Stream agent responses in real-time
+  </Card>
+  <Card title="Callbacks and Tracing" icon="chart-line" href="/guides/callbacks-and-tracing">
+    Monitor and debug agent execution
+  </Card>
+</CardGroup>

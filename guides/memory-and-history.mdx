@@ -1,0 +1,701 @@
+---
+title: Memory and History
+description: Learn how to add conversational memory and maintain context in LangChain.js applications
+---
+
+## Introduction
+
+Memory enables your LangChain applications to remember past interactions and maintain context across conversations. This is essential for:
+
+- Building chatbots with contextual awareness
+- Creating agents that learn from interactions
+- Maintaining conversation threads
+- Personalizing user experiences
+
+LangChain.js provides flexible memory abstractions that work with various storage backends.
+
+## Quick Start
+
+Add simple conversation memory to a chat model:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { HumanMessage, AIMessage } from "@langchain/core/messages";
+
+const model = new ChatOpenAI({ model: "gpt-4o" });
+
+// Maintain conversation history
+const conversationHistory = [];
+
+// First exchange
+conversationHistory.push(new HumanMessage("Hi, my name is Alice"));
+const response1 = await model.invoke(conversationHistory);
+conversationHistory.push(response1);
+
+// Second exchange - model remembers the context
+conversationHistory.push(new HumanMessage("What's my name?"));
+const response2 = await model.invoke(conversationHistory);
+console.log(response2.content);
+// "Your name is Alice!"
+```
+
+## Message History
+
+### Chat Message History
+
+Store conversation messages in memory:
+
+```typescript
+import { ChatMessageHistory } from "@langchain/core/chat_history";
+import { HumanMessage, AIMessage } from "@langchain/core/messages";
+
+const history = new ChatMessageHistory();
+
+// Add messages
+await history.addMessage(new HumanMessage("Hello!"));
+await history.addMessage(new AIMessage("Hi! How can I help you?"));
+await history.addMessage(new HumanMessage("What's the weather?"));
+
+// Get all messages
+const messages = await history.getMessages();
+console.log(messages.length); // 3
+
+// Clear history
+await history.clear();
+```
+
+### Persistent Message History
+
+Store messages in a database:
+
+```typescript
+import { RedisChatMessageHistory } from "@langchain/redis";
+
+const history = new RedisChatMessageHistory({
+  sessionId: "user-123",
+  sessionTTL: 86400, // 24 hours
+  client: redisClient
+});
+
+await history.addMessage(new HumanMessage("Remember this"));
+
+// Later, retrieve the history
+const messages = await history.getMessages();
+```
+
+## Memory Types
+
+### Buffer Memory
+
+Stores all messages in a simple buffer:
+
+```typescript
+import { BufferMemory } from "langchain/memory";
+import { ChatOpenAI } from "@langchain/openai";
+import { ConversationChain } from "langchain/chains";
+
+const memory = new BufferMemory();
+
+const chain = new ConversationChain({
+  llm: new ChatOpenAI({ model: "gpt-4o" }),
+  memory: memory
+});
+
+// First call
+await chain.call({ input: "Hi, I'm working on a Python project" });
+
+// Second call - remembers context
+await chain.call({ input: "Can you help me with it?" });
+// Model knows you're working on a Python project
+```
+
+### Buffer Window Memory
+
+Keeps only the last N messages to manage context length:
+
+```typescript
+import { BufferWindowMemory } from "langchain/memory";
+
+const memory = new BufferWindowMemory({
+  k: 5, // Keep last 5 messages
+  returnMessages: true
+});
+
+// Automatically drops oldest messages when limit is reached
+```
+
+### Summary Memory
+
+Summarizes older messages to save tokens:
+
+```typescript
+import { ConversationSummaryMemory } from "langchain/memory";
+import { ChatOpenAI } from "@langchain/openai";
+
+const memory = new ConversationSummaryMemory({
+  llm: new ChatOpenAI({ model: "gpt-4o-mini" }),
+  returnMessages: true
+});
+
+// As conversation grows, older messages are summarized
+await memory.saveContext(
+  { input: "Tell me about the solar system" },
+  { output: "The solar system consists of the Sun and..." }
+);
+
+const summary = await memory.loadMemoryVariables({});
+console.log(summary);
+```
+
+### Summary Buffer Memory
+
+Combines buffer and summary approaches:
+
+```typescript
+import { ConversationSummaryBufferMemory } from "langchain/memory";
+import { ChatOpenAI } from "@langchain/openai";
+
+const memory = new ConversationSummaryBufferMemory({
+  llm: new ChatOpenAI({ model: "gpt-4o-mini" }),
+  maxTokenLimit: 200, // Summarize when exceeding this
+  returnMessages: true
+});
+
+// Keeps recent messages in full, summarizes older ones
+```
+
+## Working with Agents
+
+### Agent with Memory
+
+Add memory to agents for context-aware tool usage:
+
+```typescript
+import { createAgent, tool } from "langchain";
+import { ChatOpenAI } from "@langchain/openai";
+import { InMemoryStore } from "@langchain/langgraph";
+import { z } from "zod";
+
+const savePreference = tool(
+  async ({ key, value }, config) => {
+    await config.store?.put(["preferences"], key, value);
+    return "Preference saved";
+  },
+  {
+    name: "save_preference",
+    description: "Save a user preference",
+    schema: z.object({
+      key: z.string(),
+      value: z.string()
+    })
+  }
+);
+
+const getPreference = tool(
+  async ({ key }, config) => {
+    const value = await config.store?.get(["preferences"], key);
+    return value || "No preference found";
+  },
+  {
+    name: "get_preference",
+    description: "Retrieve a saved preference",
+    schema: z.object({
+      key: z.string()
+    })
+  }
+);
+
+const agent = createAgent({
+  model: new ChatOpenAI({ model: "gpt-4o" }),
+  tools: [savePreference, getPreference],
+  store: new InMemoryStore()
+});
+
+// First conversation
+await agent.invoke({
+  messages: "Remember that I prefer dark mode"
+});
+
+// Later conversation
+const result = await agent.invoke({
+  messages: "What are my display preferences?"
+});
+```
+
+### Conversation Threading
+
+Maintain separate conversation threads:
+
+```typescript
+import { createAgent } from "langchain";
+import { ChatOpenAI } from "@langchain/openai";
+import { InMemoryStore } from "@langchain/langgraph";
+
+const agent = createAgent({
+  model: new ChatOpenAI({ model: "gpt-4o" }),
+  tools: [],
+  store: new InMemoryStore()
+});
+
+// Thread 1: Technical support
+await agent.invoke(
+  { messages: "I'm having database connection issues" },
+  { configurable: { thread_id: "support-123" } }
+);
+
+// Thread 2: Sales inquiry (separate context)
+await agent.invoke(
+  { messages: "Tell me about pricing" },
+  { configurable: { thread_id: "sales-456" } }
+);
+
+// Continue thread 1
+await agent.invoke(
+  { messages: "Here's the error message" },
+  { configurable: { thread_id: "support-123" } }
+);
+// Agent remembers it's helping with database issues
+```
+
+## Custom Memory Implementations
+
+### Redis Memory Backend
+
+```typescript
+import { BaseMemory } from "@langchain/core/memory";
+import { InputValues, MemoryVariables } from "@langchain/core/memory";
+import { Redis } from "ioredis";
+
+class RedisMemory extends BaseMemory {
+  private redis: Redis;
+  private sessionId: string;
+  
+  constructor(config: { redis: Redis; sessionId: string }) {
+    super();
+    this.redis = config.redis;
+    this.sessionId = config.sessionId;
+  }
+  
+  get memoryKeys(): string[] {
+    return ["history"];
+  }
+  
+  async loadMemoryVariables(_values: InputValues): Promise<MemoryVariables> {
+    const history = await this.redis.get(
+      `memory:${this.sessionId}`
+    );
+    
+    return {
+      history: history ? JSON.parse(history) : []
+    };
+  }
+  
+  async saveContext(
+    inputValues: InputValues,
+    outputValues: Record<string, any>
+  ): Promise<void> {
+    const current = await this.loadMemoryVariables({});
+    const updated = [
+      ...current.history,
+      { input: inputValues, output: outputValues }
+    ];
+    
+    await this.redis.setex(
+      `memory:${this.sessionId}`,
+      86400, // 24 hour TTL
+      JSON.stringify(updated)
+    );
+  }
+}
+
+// Usage
+const redis = new Redis();
+const memory = new RedisMemory({
+  redis,
+  sessionId: "user-123"
+});
+```
+
+### Vector Store Memory
+
+Store memories with semantic search:
+
+```typescript
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { OpenAIEmbeddings } from "@langchain/openai";
+import { BaseMemory } from "@langchain/core/memory";
+
+class VectorMemory extends BaseMemory {
+  private vectorStore: MemoryVectorStore;
+  private k = 5; // Retrieve top 5 relevant memories
+  
+  constructor() {
+    super();
+    this.vectorStore = new MemoryVectorStore(
+      new OpenAIEmbeddings()
+    );
+  }
+  
+  get memoryKeys(): string[] {
+    return ["relevant_memories"];
+  }
+  
+  async loadMemoryVariables(
+    values: InputValues
+  ): Promise<MemoryVariables> {
+    const query = values.input || "";
+    
+    // Find semantically similar past interactions
+    const results = await this.vectorStore.similaritySearch(
+      query,
+      this.k
+    );
+    
+    return {
+      relevant_memories: results.map(doc => doc.pageContent)
+    };
+  }
+  
+  async saveContext(
+    inputValues: InputValues,
+    outputValues: Record<string, any>
+  ): Promise<void> {
+    const memory = `User: ${inputValues.input}\nAssistant: ${outputValues.output}`;
+    
+    await this.vectorStore.addDocuments([
+      { pageContent: memory, metadata: { timestamp: Date.now() } }
+    ]);
+  }
+}
+```
+
+## Memory Management
+
+### Token Management
+
+Prevent context from exceeding model limits:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { HumanMessage, AIMessage } from "@langchain/core/messages";
+
+class TokenAwareConversation {
+  private messages: any[] = [];
+  private maxTokens = 4000;
+  
+  constructor(private model: ChatOpenAI) {}
+  
+  private estimateTokens(messages: any[]): number {
+    // Rough estimation: 1 token ≈ 4 characters
+    return messages.reduce((total, msg) => {
+      return total + (msg.content.length / 4);
+    }, 0);
+  }
+  
+  private trimMessages(messages: any[]): any[] {
+    let tokens = this.estimateTokens(messages);
+    let trimmed = [...messages];
+    
+    // Remove oldest messages until under limit
+    while (tokens > this.maxTokens && trimmed.length > 2) {
+      trimmed.shift(); // Keep system message
+      tokens = this.estimateTokens(trimmed);
+    }
+    
+    return trimmed;
+  }
+  
+  async chat(input: string): Promise<string> {
+    this.messages.push(new HumanMessage(input));
+    this.messages = this.trimMessages(this.messages);
+    
+    const response = await this.model.invoke(this.messages);
+    this.messages.push(response);
+    
+    return response.content;
+  }
+}
+```
+
+### Selective Memory
+
+Store only important information:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+
+class SelectiveMemory {
+  private important: string[] = [];
+  
+  constructor(private model: ChatOpenAI) {}
+  
+  private async isImportant(text: string): Promise<boolean> {
+    const prompt = `
+      Is this information important to remember for future conversations?
+      Answer only YES or NO.
+      
+      Information: ${text}
+    `;
+    
+    const response = await this.model.invoke(prompt);
+    return response.content.toUpperCase().includes("YES");
+  }
+  
+  async process(input: string, output: string): Promise<void> {
+    // Check if exchange contains important information
+    if (await this.isImportant(input + " " + output)) {
+      this.important.push(`User: ${input}\nAssistant: ${output}`);
+    }
+  }
+  
+  getImportantMemories(): string[] {
+    return this.important;
+  }
+}
+```
+
+### Memory Persistence
+
+Save and load memory state:
+
+```typescript
+import fs from "fs/promises";
+import { ChatMessageHistory } from "@langchain/core/chat_history";
+
+class PersistentMemory {
+  private history: ChatMessageHistory;
+  private filepath: string;
+  
+  constructor(filepath: string) {
+    this.filepath = filepath;
+    this.history = new ChatMessageHistory();
+  }
+  
+  async load(): Promise<void> {
+    try {
+      const data = await fs.readFile(this.filepath, "utf-8");
+      const messages = JSON.parse(data);
+      
+      for (const msg of messages) {
+        await this.history.addMessage(msg);
+      }
+    } catch (error) {
+      // File doesn't exist yet
+    }
+  }
+  
+  async save(): Promise<void> {
+    const messages = await this.history.getMessages();
+    await fs.writeFile(
+      this.filepath,
+      JSON.stringify(messages, null, 2)
+    );
+  }
+  
+  async addMessage(message: any): Promise<void> {
+    await this.history.addMessage(message);
+    await this.save();
+  }
+  
+  async getMessages(): Promise<any[]> {
+    return this.history.getMessages();
+  }
+}
+
+// Usage
+const memory = new PersistentMemory("./conversation-history.json");
+await memory.load();
+await memory.addMessage(new HumanMessage("Hello"));
+```
+
+## Memory with RAG
+
+Combine memory with retrieval:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { OpenAIEmbeddings } from "@langchain/openai";
+import { HumanMessage, AIMessage } from "@langchain/core/messages";
+
+class MemoryRAGChat {
+  private conversationHistory: any[] = [];
+  private longTermMemory: MemoryVectorStore;
+  private model: ChatOpenAI;
+  
+  constructor() {
+    this.model = new ChatOpenAI({ model: "gpt-4o" });
+    this.longTermMemory = new MemoryVectorStore(
+      new OpenAIEmbeddings()
+    );
+  }
+  
+  async chat(input: string): Promise<string> {
+    // Retrieve relevant long-term memories
+    const relevantMemories = await this.longTermMemory
+      .similaritySearch(input, 3);
+    
+    // Build context from short-term (conversation) 
+    // and long-term (vector store) memory
+    const context = [
+      ...this.conversationHistory.slice(-10), // Last 10 messages
+      ...relevantMemories.map(doc => 
+        new HumanMessage(`Past context: ${doc.pageContent}`)
+      ),
+      new HumanMessage(input)
+    ];
+    
+    const response = await this.model.invoke(context);
+    
+    // Update short-term memory
+    this.conversationHistory.push(
+      new HumanMessage(input),
+      response
+    );
+    
+    // Store important information in long-term memory
+    await this.longTermMemory.addDocuments([
+      {
+        pageContent: `${input}\n${response.content}`,
+        metadata: { timestamp: Date.now() }
+      }
+    ]);
+    
+    return response.content;
+  }
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Choose the Right Memory Type">
+    Match memory to your use case:
+
+    - **Buffer Memory**: Short conversations, simple Q&A
+    - **Window Memory**: Chat with bounded context
+    - **Summary Memory**: Long conversations, cost-sensitive
+    - **Vector Memory**: Semantic search over history
+
+    ```typescript
+    // For chat support (need recent context)
+    const memory = new BufferWindowMemory({ k: 10 });
+    
+    // For long conversations (token-efficient)
+    const memory = new ConversationSummaryMemory({ llm });
+    
+    // For semantic retrieval
+    const memory = new VectorMemory();
+    ```
+  </Accordion>
+
+  <Accordion title="Implement Memory Expiration">
+    Clean up old data:
+
+    ```typescript
+    class ExpiringMemory {
+      private memories: Map<string, { data: any; expires: number }> = new Map();
+      
+      set(key: string, value: any, ttlMs: number): void {
+        this.memories.set(key, {
+          data: value,
+          expires: Date.now() + ttlMs
+        });
+      }
+      
+      get(key: string): any | null {
+        const entry = this.memories.get(key);
+        
+        if (!entry) return null;
+        
+        if (Date.now() > entry.expires) {
+          this.memories.delete(key);
+          return null;
+        }
+        
+        return entry.data;
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Monitor Memory Usage">
+    Track memory consumption:
+
+    ```typescript
+    class MonitoredMemory {
+      private messages: any[] = [];
+      
+      getStats() {
+        const totalSize = JSON.stringify(this.messages).length;
+        const estimatedTokens = totalSize / 4;
+        
+        return {
+          messageCount: this.messages.length,
+          totalBytes: totalSize,
+          estimatedTokens
+        };
+      }
+      
+      addMessage(message: any): void {
+        this.messages.push(message);
+        const stats = this.getStats();
+        
+        if (stats.estimatedTokens > 4000) {
+          console.warn("Memory approaching token limit");
+        }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Handle Privacy">
+    Implement data retention policies:
+
+    ```typescript
+    class PrivacyAwareMemory {
+      async saveContext(
+        input: InputValues,
+        output: Record<string, any>
+      ): Promise<void> {
+        // Sanitize PII before storing
+        const sanitized = this.removePII(input.input);
+        
+        await this.storage.save({
+          input: sanitized,
+          output: output,
+          timestamp: Date.now()
+        });
+      }
+      
+      private removePII(text: string): string {
+        // Remove emails
+        text = text.replace(/[\w.-]+@[\w.-]+\.\w+/g, "[EMAIL]");
+        // Remove phone numbers
+        text = text.replace(/\d{3}-\d{3}-\d{4}/g, "[PHONE]");
+        // Remove credit cards
+        text = text.replace(/\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}/g, "[CARD]");
+        
+        return text;
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Building Agents" icon="robot" href="/guides/building-agents">
+    Add memory to agents for context-aware behavior
+  </Card>
+  <Card title="Retrieval" icon="database" href="/guides/retrieval">
+    Combine memory with document retrieval
+  </Card>
+  <Card title="Working with Chat Models" icon="comments" href="/guides/working-with-chat-models">
+    Use message history with chat models
+  </Card>
+  <Card title="Callbacks and Tracing" icon="chart-line" href="/guides/callbacks-and-tracing">
+    Monitor memory operations
+  </Card>
+</CardGroup>

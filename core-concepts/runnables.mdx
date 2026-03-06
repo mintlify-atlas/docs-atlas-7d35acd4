@@ -1,0 +1,494 @@
+---
+title: Runnables
+description: The foundational interface for composable components in LangChain.js
+---
+
+## Overview
+
+The `Runnable` interface is the foundation of LangChain.js. It provides a standard protocol for components that can be invoked, streamed, and batched. Nearly every component in LangChain - from chat models to prompts to chains - implements the Runnable interface.
+
+<Info>
+The Runnable interface is defined in `@langchain/core/runnables/base.ts`
+</Info>
+
+## Core Methods
+
+Every Runnable implements these three core methods:
+
+### invoke()
+
+Execute the Runnable with a single input:
+
+```typescript
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({ model: "gpt-4o" });
+
+const result = await model.invoke([
+  { role: "user", content: "Hello!" }
+]);
+
+console.log(result.content);
+// "Hello! How can I assist you today?"
+```
+
+### stream()
+
+Stream outputs as they're generated:
+
+```typescript
+const stream = await model.stream([
+  { role: "user", content: "Tell me a story" }
+]);
+
+for await (const chunk of stream) {
+  console.log(chunk.content);
+}
+```
+
+### batch()
+
+Process multiple inputs in parallel:
+
+```typescript
+const results = await model.batch([
+  [{ role: "user", content: "Hello in Spanish" }],
+  [{ role: "user", content: "Hello in French" }],
+  [{ role: "user", content: "Hello in German" }],
+]);
+
+results.forEach(result => {
+  console.log(result.content);
+});
+// "¡Hola!"
+// "Bonjour!"
+// "Hallo!"
+```
+
+Control concurrency:
+
+```typescript
+const results = await model.batch(
+  inputs,
+  { maxConcurrency: 3 } // Process 3 at a time
+);
+```
+
+## Chaining Runnables
+
+The real power of Runnables comes from composing them together.
+
+### Using pipe()
+
+Chain Runnables sequentially:
+
+```typescript
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { ChatOpenAI } from "@langchain/openai";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+
+const prompt = ChatPromptTemplate.fromTemplate(
+  "Tell me a short joke about {topic}"
+);
+
+const model = new ChatOpenAI({ model: "gpt-4o" });
+const outputParser = new StringOutputParser();
+
+const chain = prompt.pipe(model).pipe(outputParser);
+
+const result = await chain.invoke({ topic: "programming" });
+console.log(result);
+// "Why do programmers prefer dark mode? Because light attracts bugs!"
+```
+
+### Type Safety
+
+The output type of one Runnable must match the input type of the next:
+
+```typescript
+// ✓ Valid - types align
+const chain = prompt          // outputs PromptValue
+  .pipe(model)                // accepts PromptValue, outputs AIMessage
+  .pipe(outputParser);        // accepts AIMessage, outputs string
+
+// ✗ Invalid - type mismatch
+const invalid = outputParser  // expects BaseMessage
+  .pipe(prompt);              // expects object with variables
+```
+
+## RunnableSequence
+
+You can also create sequences explicitly:
+
+```typescript
+import { RunnableSequence } from "@langchain/core/runnables";
+
+const chain = RunnableSequence.from([
+  prompt,
+  model,
+  outputParser,
+]);
+```
+
+## RunnableParallel
+
+Execute multiple Runnables in parallel and combine results:
+
+```typescript
+import { RunnableParallel } from "@langchain/core/runnables";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({ model: "gpt-4o" });
+
+const jokeChain = ChatPromptTemplate
+  .fromTemplate("Tell me a joke about {topic}")
+  .pipe(model);
+
+const poemChain = ChatPromptTemplate
+  .fromTemplate("Write a haiku about {topic}")
+  .pipe(model);
+
+const parallel = RunnableParallel.from({
+  joke: jokeChain,
+  poem: poemChain,
+});
+
+const result = await parallel.invoke({ topic: "ocean" });
+console.log(result.joke.content);
+console.log(result.poem.content);
+```
+
+## RunnableLambda
+
+Wrap custom functions as Runnables:
+
+```typescript
+import { RunnableLambda } from "@langchain/core/runnables";
+
+const upperCase = new RunnableLambda({
+  func: (input: string) => input.toUpperCase(),
+});
+
+const chain = prompt
+  .pipe(model)
+  .pipe(outputParser)
+  .pipe(upperCase);
+
+const result = await chain.invoke({ topic: "cats" });
+// Result will be in uppercase
+```
+
+Shorthand syntax:
+
+```typescript
+const chain = prompt
+  .pipe(model)
+  .pipe(outputParser)
+  .pipe((input) => input.toUpperCase());
+```
+
+## RunnableBranch
+
+Conditionally route to different Runnables:
+
+```typescript
+import { RunnableBranch } from "@langchain/core/runnables";
+
+const branch = RunnableBranch.from([
+  // [condition, runnable] pairs
+  [
+    (input: string) => input.length < 50,
+    shortChain,
+  ],
+  [
+    (input: string) => input.length < 200,
+    mediumChain,
+  ],
+  // Default runnable (no condition)
+  longChain,
+]);
+
+const result = await branch.invoke("Some input text...");
+```
+
+## RunnablePassthrough
+
+Pass inputs through unchanged, optionally adding fields:
+
+```typescript
+import { RunnablePassthrough } from "@langchain/core/runnables";
+import { RunnableParallel } from "@langchain/core/runnables";
+
+const chain = RunnableParallel.from({
+  // Pass the original input through
+  original: new RunnablePassthrough(),
+  
+  // Also get a processed version
+  processed: prompt.pipe(model),
+});
+
+const result = await chain.invoke({ question: "What is AI?" });
+// {
+//   original: { question: "What is AI?" },
+//   processed: AIMessage(...)
+// }
+```
+
+Add fields:
+
+```typescript
+const chain = RunnablePassthrough.assign({
+  // Add a new field while keeping existing ones
+  answer: (input) => model.invoke(input.question),
+});
+
+const result = await chain.invoke({ question: "What is AI?" });
+// {
+//   question: "What is AI?",
+//   answer: AIMessage(...)
+// }
+```
+
+## Configuration
+
+All Runnables accept a configuration object:
+
+```typescript
+import type { RunnableConfig } from "@langchain/core/runnables";
+
+const config: RunnableConfig = {
+  // Callbacks for observability
+  callbacks: [myHandler],
+  
+  // Tags for organization
+  tags: ["production", "user-query"],
+  
+  // Metadata for tracking
+  metadata: {
+    userId: "123",
+    sessionId: "abc",
+  },
+  
+  // Execution control
+  maxConcurrency: 5,
+  signal: abortSignal,
+  
+  // Unique run ID
+  runId: "unique-id",
+  
+  // Custom run name
+  runName: "my-chain",
+};
+
+const result = await chain.invoke(input, config);
+```
+
+## Binding
+
+### withConfig()
+
+Bind configuration to a Runnable:
+
+```typescript
+const configuredChain = chain.withConfig({
+  tags: ["production"],
+  metadata: { version: "1.0" },
+});
+
+// Config is automatically applied
+await configuredChain.invoke(input);
+```
+
+### bind()
+
+Bind arguments to a Runnable (for models):
+
+```typescript
+const modelWithTools = model.bind({
+  tools: [searchTool, calculatorTool],
+});
+
+const result = await modelWithTools.invoke([
+  { role: "user", content: "What's 25 * 17?" }
+]);
+```
+
+## Error Handling
+
+### withRetry()
+
+Automatically retry on failure:
+
+```typescript
+const chainWithRetry = chain.withRetry({
+  stopAfterAttempt: 3,
+  onFailedAttempt: (error, attemptNumber) => {
+    console.log(`Attempt ${attemptNumber} failed: ${error.message}`);
+  },
+});
+```
+
+### withFallbacks()
+
+Provide fallback Runnables:
+
+```typescript
+const chainWithFallbacks = primaryModel.withFallbacks([
+  fallbackModel1,
+  fallbackModel2,
+]);
+
+// If primaryModel fails, tries fallbackModel1, then fallbackModel2
+```
+
+## Stream Events
+
+Get fine-grained events during streaming:
+
+```typescript
+const eventStream = await chain.streamEvents(
+  { topic: "ocean" },
+  { version: "v2" }
+);
+
+for await (const event of eventStream) {
+  switch (event.event) {
+    case "on_chain_start":
+      console.log("Chain started");
+      break;
+    case "on_chat_model_stream":
+      console.log(event.data.chunk.content);
+      break;
+    case "on_chain_end":
+      console.log("Chain ended");
+      break;
+  }
+}
+```
+
+## Batch Error Handling
+
+By default, `batch()` throws on the first error. Use `returnExceptions` to collect all results:
+
+```typescript
+const results = await chain.batch(
+  [input1, input2, input3],
+  {},
+  { returnExceptions: true }
+);
+
+// Results is an array of outputs or errors
+results.forEach((result, i) => {
+  if (result instanceof Error) {
+    console.error(`Input ${i} failed:`, result.message);
+  } else {
+    console.log(`Input ${i} succeeded:`, result);
+  }
+});
+```
+
+## Custom Runnables
+
+Create your own Runnables by extending the base class:
+
+```typescript
+import { Runnable } from "@langchain/core/runnables";
+
+class MyRunnable extends Runnable<string, string> {
+  lc_namespace = ["my_package", "runnables"];
+  
+  async invoke(input: string, config?: RunnableConfig): Promise<string> {
+    // Your implementation
+    return input.toUpperCase();
+  }
+}
+```
+
+For functions, use `RunnableLambda`:
+
+```typescript
+const myRunnable = new RunnableLambda({
+  func: async (input: string) => {
+    // Your async implementation
+    return input.toUpperCase();
+  },
+});
+```
+
+## Type Signature
+
+```typescript
+abstract class Runnable<
+  RunInput = any,
+  RunOutput = any,
+  CallOptions extends RunnableConfig = RunnableConfig
+> {
+  abstract invoke(
+    input: RunInput,
+    options?: Partial<CallOptions>
+  ): Promise<RunOutput>;
+  
+  async stream(
+    input: RunInput,
+    options?: Partial<CallOptions>
+  ): Promise<IterableReadableStream<RunOutput>>;
+  
+  async batch(
+    inputs: RunInput[],
+    options?: Partial<CallOptions> | Partial<CallOptions>[],
+    batchOptions?: RunnableBatchOptions
+  ): Promise<RunOutput[]>;
+  
+  pipe<NewRunOutput>(
+    coerceable: RunnableLike<RunOutput, NewRunOutput>
+  ): Runnable<RunInput, NewRunOutput>;
+  
+  withConfig(
+    config: Partial<CallOptions>
+  ): Runnable<RunInput, RunOutput, CallOptions>;
+  
+  withRetry(fields?: {
+    stopAfterAttempt?: number;
+  }): RunnableRetry<RunInput, RunOutput, CallOptions>;
+  
+  withFallbacks(
+    fallbacks: Runnable<RunInput, RunOutput>[]
+  ): RunnableWithFallbacks<RunInput, RunOutput>;
+}
+```
+
+## Key Takeaways
+
+<CardGroup cols={2}>
+  <Card title="Standard Interface" icon="plug">
+    All components implement invoke, stream, and batch
+  </Card>
+  <Card title="Composable" icon="link">
+    Chain Runnables together with pipe()
+  </Card>
+  <Card title="Type Safe" icon="shield">
+    TypeScript ensures correct composition
+  </Card>
+  <Card title="Flexible" icon="wand-magic">
+    Custom logic via RunnableLambda
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Messages" icon="message" href="/core-concepts/messages">
+    Learn about message types
+  </Card>
+  <Card title="Chat Models" icon="robot" href="/core-concepts/chat-models">
+    Use language models
+  </Card>
+  <Card title="Prompts" icon="file-text" href="/core-concepts/prompts">
+    Create prompt templates
+  </Card>
+  <Card title="Agents" icon="brain" href="/core-concepts/agents">
+    Build autonomous agents
+  </Card>
+</CardGroup>

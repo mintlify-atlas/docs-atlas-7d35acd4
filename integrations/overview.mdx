@@ -1,0 +1,105 @@
+---
+title: Integrations Overview
+description: Explore the wide range of integrations available in LangChain.js
+---
+
+LangChain.js provides a rich ecosystem of integrations for building LLM-powered applications. These integrations are distributed across multiple packages to keep your dependencies minimal and your bundle sizes small.
+
+## Integration Categories
+
+<CardGroup cols={2}>
+  <Card title="Chat Models" icon="comments" href="/integrations/chat-models">
+    Connect to various LLM providers like OpenAI, Anthropic, Google, and more
+  </Card>
+  
+  <Card title="Embeddings" icon="vector-square" href="/integrations/embeddings">
+    Generate vector embeddings for semantic search and similarity matching
+  </Card>
+  
+  <Card title="Vector Stores" icon="database" href="/integrations/vector-stores">
+    Store and retrieve embeddings with popular vector databases
+  </Card>
+  
+  <Card title="Document Loaders" icon="file-import" href="/integrations/document-loaders">
+    Load and process documents from various sources and formats
+  </Card>
+</CardGroup>
+
+## Package Structure
+
+LangChain.js integrations are organized into several package types:
+
+### Provider Packages
+
+First-party integrations maintained by the LangChain team:
+
+- `@langchain/openai` - OpenAI models and embeddings
+- `@langchain/anthropic` - Anthropic Claude models
+- `@langchain/google-genai` - Google Gemini models
+- `@langchain/cohere` - Cohere models and embeddings
+- `@langchain/mistralai` - Mistral AI models
+- And many more...
+
+Each provider package includes only the dependencies needed for that specific integration, keeping your bundle size minimal.
+
+### Community Package
+
+The `@langchain/community` package contains community-maintained integrations:
+
+- Additional chat models
+- Vector store implementations
+- Document loaders
+- Utility integrations
+
+Install community integrations:
+
+```bash
+npm install @langchain/community
+```
+
+## Installation
+
+Install only the integrations you need:
+
+```bash
+# Install specific provider packages
+npm install @langchain/openai
+npm install @langchain/anthropic
+npm install @langchain/pinecone
+
+# Or install the community package for broader access
+npm install @langchain/community
+```
+
+## Environment Support
+
+LangChain.js integrations work across multiple JavaScript environments:
+
+- Node.js (20.x, 22.x, 24.x)
+- Browser
+- Cloudflare Workers
+- Vercel Edge Functions
+- Deno
+- Bun
+
+Most integrations support all environments, but some may have environment-specific limitations. Check the individual integration documentation for details.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Chat Models" href="/integrations/chat-models">
+    Start building with LLM chat models
+  </Card>
+  
+  <Card title="Embeddings" href="/integrations/embeddings">
+    Learn about embedding models
+  </Card>
+  
+  <Card title="Vector Stores" href="/integrations/vector-stores">
+    Set up vector storage
+  </Card>
+  
+  <Card title="Document Loaders" href="/integrations/document-loaders">
+    Load documents into your application
+  </Card>
+</CardGroup>

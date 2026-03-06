@@ -1,0 +1,624 @@
+---
+title: Testing Utilities
+description: Fake implementations and test matchers for building reliable LangChain applications
+---
+
+LangChain.js provides comprehensive testing utilities to help you write reliable tests without making actual API calls. These utilities include fake implementations of core components and custom test matchers.
+
+## Installation
+
+Testing utilities are included in `@langchain/core`:
+
+```bash
+npm install @langchain/core
+```
+
+## Fake Models
+
+### FakeChatModel
+
+A simple chat model that echoes back the input or returns predefined responses.
+
+```typescript
+import { FakeChatModel } from "@langchain/core/utils/testing";
+import { HumanMessage } from "@langchain/core/messages";
+
+const model = new FakeChatModel({});
+
+const response = await model.invoke([new HumanMessage("Hello!")]);
+console.log(response.content); // "Hello!"
+
+// With stop sequences
+const response2 = await model.invoke(
+  [new HumanMessage("test")],
+  { stop: ["STOP"] }
+);
+console.log(response2.content); // "STOP"
+```
+
+**Use Cases:**
+- Unit testing chains and agents
+- Testing prompt templates
+- Validating message handling logic
+
+### FakeStreamingChatModel
+
+A chat model that simulates streaming responses with configurable behavior.
+
+```typescript
+import { FakeStreamingChatModel } from "@langchain/core/utils/testing";
+import { AIMessageChunk } from "@langchain/core/messages";
+
+const model = new FakeStreamingChatModel({
+  sleep: 50, // Delay between chunks in ms
+  responses: [new AIMessage("Hello from fake model!")],
+});
+
+// Stream response
+for await (const chunk of await model.stream(input)) {
+  console.log(chunk.content);
+}
+```
+
+**Configuration:**
+- `sleep` (number): Milliseconds between chunks (default: 50)
+- `responses` (BaseMessage[]): Predefined messages to return
+- `chunks` (AIMessageChunk[]): Exact chunks to emit
+- `toolStyle` ("openai" | "anthropic" | "bedrock" | "google"): Tool format
+- `thrownErrorString` (string): Error to throw instead of responding
+
+**Tool Calling:**
+
+```typescript
+import { FakeStreamingChatModel } from "@langchain/core/utils/testing";
+import { z } from "zod";
+
+const model = new FakeStreamingChatModel({
+  toolStyle: "openai",
+  chunks: [
+    new AIMessageChunk({
+      content: "",
+      tool_calls: [{
+        name: "get_weather",
+        args: { location: "San Francisco" },
+        id: "call_123",
+      }],
+    }),
+  ],
+});
+
+const weatherTool = {
+  name: "get_weather",
+  description: "Get weather for a location",
+  schema: z.object({ location: z.string() }),
+};
+
+const modelWithTools = model.bindTools([weatherTool]);
+const result = await modelWithTools.invoke("What's the weather?");
+
+console.log(result.tool_calls);
+// [{ name: "get_weather", args: { location: "San Francisco" }, id: "call_123" }]
+```
+
+### FakeListChatModel
+
+A chat model that cycles through a predefined list of responses.
+
+```typescript
+import { FakeListChatModel } from "@langchain/core/utils/testing";
+
+const model = new FakeListChatModel({
+  responses: [
+    "First response",
+    "Second response",
+    "Third response",
+  ],
+  sleep: 100, // Optional delay
+});
+
+const response1 = await model.invoke([new HumanMessage("Hello")]);
+console.log(response1.content); // "First response"
+
+const response2 = await model.invoke([new HumanMessage("Hello")]);
+console.log(response2.content); // "Second response"
+
+// Cycles back to the beginning
+const response4 = await model.invoke([new HumanMessage("Hello")]);
+console.log(response4.content); // "First response"
+```
+
+**Features:**
+- Cycles through responses automatically
+- Supports streaming
+- Can emit custom events for testing
+- Supports tool calling
+- Can include generation info for testing metadata
+
+**Testing Error Handling:**
+
+```typescript
+const model = new FakeListChatModel({
+  responses: ["response"],
+});
+
+const result = await model.invoke(
+  [new HumanMessage("test")],
+  { thrownErrorString: "API Error" }
+);
+// Throws: Error: API Error
+```
+
+### FakeLLM
+
+A basic LLM that echoes input or returns a predefined response.
+
+```typescript
+import { FakeLLM } from "@langchain/core/utils/testing";
+
+const llm = new FakeLLM({
+  response: "This is a fake response",
+});
+
+const result = await llm.invoke("Any input");
+console.log(result); // "This is a fake response"
+
+// Without response, echoes input
+const llm2 = new FakeLLM({});
+const result2 = await llm2.invoke("Echo this");
+console.log(result2); // "Echo this"
+```
+
+### FakeStreamingLLM
+
+A streaming LLM with configurable responses.
+
+```typescript
+import { FakeStreamingLLM } from "@langchain/core/utils/testing";
+
+const llm = new FakeStreamingLLM({
+  responses: ["First", "Second", "Third"],
+  sleep: 50,
+});
+
+for await (const chunk of await llm.stream("prompt")) {
+  console.log(chunk);
+}
+```
+
+## Fake Embeddings
+
+### FakeEmbeddings
+
+Returns fixed embeddings for any input.
+
+```typescript
+import { FakeEmbeddings } from "@langchain/core/utils/testing";
+
+const embeddings = new FakeEmbeddings();
+
+const vector = await embeddings.embedQuery("test query");
+console.log(vector); // [0.1, 0.2, 0.3, 0.4]
+
+const vectors = await embeddings.embedDocuments([
+  "doc 1",
+  "doc 2",
+]);
+// [[0.1, 0.2, 0.3, 0.4], [0.1, 0.2, 0.3, 0.4]]
+```
+
+### SyntheticEmbeddings
+
+Generates deterministic embeddings based on input content.
+
+```typescript
+import { SyntheticEmbeddings } from "@langchain/core/utils/testing";
+
+const embeddings = new SyntheticEmbeddings({
+  vectorSize: 4,
+});
+
+const vector1 = await embeddings.embedQuery("hello world");
+const vector2 = await embeddings.embedQuery("hello world");
+// vector1 === vector2 (deterministic)
+
+const vector3 = await embeddings.embedQuery("different text");
+// vector3 !== vector1 (different content = different embedding)
+```
+
+**Use Cases:**
+- Testing similarity search
+- Testing vector store operations
+- Benchmarking without API calls
+- Deterministic test results
+
+## Other Fake Components
+
+### FakeRetriever
+
+Returns predefined documents for any query.
+
+```typescript
+import { FakeRetriever } from "@langchain/core/utils/testing";
+import { Document } from "@langchain/core/documents";
+
+const retriever = new FakeRetriever({
+  output: [
+    new Document({ pageContent: "Result 1" }),
+    new Document({ pageContent: "Result 2" }),
+  ],
+});
+
+const docs = await retriever.invoke("any query");
+console.log(docs); // [Document("Result 1"), Document("Result 2")]
+```
+
+### FakeTool
+
+A tool that returns JSON representation of its input.
+
+```typescript
+import { FakeTool } from "@langchain/core/utils/testing";
+import { z } from "zod";
+
+const tool = new FakeTool({
+  name: "test_tool",
+  description: "A test tool",
+  schema: z.object({
+    input: z.string(),
+  }),
+});
+
+const result = await tool.invoke({ input: "test" });
+console.log(result); // '{"input":"test"}'
+```
+
+## Test Matchers
+
+LangChain provides custom Jest/Vitest matchers for testing messages and tool calls.
+
+### Setup
+
+First, extend the test framework with LangChain matchers:
+
+```typescript
+import { expect } from "vitest";
+import { langchainMatchers } from "@langchain/core/testing";
+
+expect.extend(langchainMatchers);
+```
+
+### Message Type Matchers
+
+#### toBeHumanMessage
+
+Asserts that a value is a HumanMessage.
+
+```typescript
+import { HumanMessage } from "@langchain/core/messages";
+
+const message = new HumanMessage("Hello");
+
+expect(message).toBeHumanMessage();
+expect(message).toBeHumanMessage("Hello");
+expect(message).toBeHumanMessage({ content: "Hello" });
+```
+
+#### toBeAIMessage
+
+Asserts that a value is an AIMessage.
+
+```typescript
+import { AIMessage } from "@langchain/core/messages";
+
+const message = new AIMessage({ 
+  content: "Hi there!",
+  name: "assistant"
+});
+
+expect(message).toBeAIMessage();
+expect(message).toBeAIMessage("Hi there!");
+expect(message).toBeAIMessage({ 
+  content: "Hi there!",
+  name: "assistant"
+});
+```
+
+#### toBeSystemMessage
+
+Asserts that a value is a SystemMessage.
+
+```typescript
+import { SystemMessage } from "@langchain/core/messages";
+
+const message = new SystemMessage("You are a helpful assistant");
+
+expect(message).toBeSystemMessage();
+expect(message).toBeSystemMessage("You are a helpful assistant");
+```
+
+#### toBeToolMessage
+
+Asserts that a value is a ToolMessage.
+
+```typescript
+import { ToolMessage } from "@langchain/core/messages";
+
+const message = new ToolMessage({
+  content: "Result",
+  tool_call_id: "call_123",
+});
+
+expect(message).toBeToolMessage();
+expect(message).toBeToolMessage({ tool_call_id: "call_123" });
+```
+
+### Tool Call Matchers
+
+#### toHaveToolCalls
+
+Asserts that an AIMessage has specific tool calls.
+
+```typescript
+import { AIMessage } from "@langchain/core/messages";
+
+const message = new AIMessage({
+  content: "",
+  tool_calls: [
+    {
+      name: "get_weather",
+      args: { location: "NYC" },
+      id: "call_123",
+    },
+  ],
+});
+
+expect(message).toHaveToolCalls([
+  { name: "get_weather", args: { location: "NYC" } },
+]);
+```
+
+#### toHaveToolCallCount
+
+Asserts the number of tool calls in an AIMessage.
+
+```typescript
+const message = new AIMessage({
+  content: "",
+  tool_calls: [
+    { name: "tool1", args: {}, id: "1" },
+    { name: "tool2", args: {}, id: "2" },
+  ],
+});
+
+expect(message).toHaveToolCallCount(2);
+```
+
+#### toContainToolCall
+
+Asserts that an AIMessage contains at least one matching tool call.
+
+```typescript
+const message = new AIMessage({
+  content: "",
+  tool_calls: [
+    { name: "tool1", args: { a: 1 }, id: "1" },
+    { name: "tool2", args: { b: 2 }, id: "2" },
+  ],
+});
+
+expect(message).toContainToolCall({ name: "tool1" });
+expect(message).toContainToolCall({ name: "tool2", args: { b: 2 } });
+```
+
+### Message Array Matchers
+
+#### toHaveToolMessages
+
+Asserts that an array of messages contains specific ToolMessages.
+
+```typescript
+import { AIMessage, ToolMessage } from "@langchain/core/messages";
+
+const messages = [
+  new AIMessage({ content: "", tool_calls: [{ name: "tool", args: {}, id: "1" }] }),
+  new ToolMessage({ content: "result", tool_call_id: "1" }),
+];
+
+expect(messages).toHaveToolMessages([
+  { content: "result", tool_call_id: "1" },
+]);
+```
+
+### Special Matchers
+
+#### toHaveBeenInterrupted
+
+Asserts that a graph execution was interrupted (used with LangGraph).
+
+```typescript
+const result = {
+  __interrupt__: [{ value: "user_input_needed" }],
+};
+
+expect(result).toHaveBeenInterrupted();
+expect(result).toHaveBeenInterrupted("user_input_needed");
+```
+
+#### toHaveStructuredResponse
+
+Asserts that a result has a structured response.
+
+```typescript
+const result = {
+  structuredResponse: {
+    name: "John",
+    age: 30,
+  },
+};
+
+expect(result).toHaveStructuredResponse();
+expect(result).toHaveStructuredResponse({ name: "John" });
+```
+
+## Testing Patterns
+
+### Testing a Simple Chain
+
+```typescript
+import { describe, test, expect } from "vitest";
+import { FakeChatModel } from "@langchain/core/utils/testing";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+
+describe("Translation Chain", () => {
+  test("should translate text", async () => {
+    const model = new FakeChatModel({});
+    const prompt = ChatPromptTemplate.fromTemplate(
+      "Translate '{text}' to {language}"
+    );
+    
+    const chain = prompt.pipe(model);
+    const result = await chain.invoke({
+      text: "Hello",
+      language: "Spanish",
+    });
+    
+    expect(result.content).toContain("Hello");
+  });
+});
+```
+
+### Testing Tool Calling
+
+```typescript
+import { describe, test, expect } from "vitest";
+import { FakeStreamingChatModel } from "@langchain/core/utils/testing";
+import { langchainMatchers } from "@langchain/core/testing";
+import { z } from "zod";
+import { AIMessageChunk } from "@langchain/core/messages";
+
+expect.extend(langchainMatchers);
+
+describe("Tool Calling", () => {
+  test("should call tool with correct arguments", async () => {
+    const model = new FakeStreamingChatModel({
+      chunks: [
+        new AIMessageChunk({
+          content: "",
+          tool_calls: [{
+            name: "calculator",
+            args: { a: 5, b: 3 },
+            id: "call_1",
+          }],
+        }),
+      ],
+    });
+    
+    const tool = {
+      name: "calculator",
+      description: "Add two numbers",
+      schema: z.object({
+        a: z.number(),
+        b: z.number(),
+      }),
+    };
+    
+    const modelWithTools = model.bindTools([tool]);
+    const result = await modelWithTools.invoke("What is 5 + 3?");
+    
+    expect(result).toBeAIMessage();
+    expect(result).toHaveToolCallCount(1);
+    expect(result).toContainToolCall({
+      name: "calculator",
+      args: { a: 5, b: 3 },
+    });
+  });
+});
+```
+
+### Testing Streaming
+
+```typescript
+import { describe, test, expect } from "vitest";
+import { FakeStreamingChatModel } from "@langchain/core/utils/testing";
+import { AIMessage } from "@langchain/core/messages";
+
+describe("Streaming", () => {
+  test("should stream response chunks", async () => {
+    const model = new FakeStreamingChatModel({
+      responses: [new AIMessage("Hello World")],
+      sleep: 10,
+    });
+    
+    const chunks: string[] = [];
+    for await (const chunk of await model.stream("test")) {
+      chunks.push(chunk.content.toString());
+    }
+    
+    expect(chunks.join("")).toBe("Hello World");
+    expect(chunks.length).toBeGreaterThan(1);
+  });
+});
+```
+
+### Testing Error Handling
+
+```typescript
+import { describe, test, expect } from "vitest";
+import { FakeLLM } from "@langchain/core/utils/testing";
+
+describe("Error Handling", () => {
+  test("should handle model errors", async () => {
+    const llm = new FakeLLM({
+      thrownErrorString: "API rate limit exceeded",
+    });
+    
+    await expect(llm.invoke("test")).rejects.toThrow(
+      "API rate limit exceeded"
+    );
+  });
+});
+```
+
+### Testing Retrieval
+
+```typescript
+import { describe, test, expect } from "vitest";
+import { FakeRetriever } from "@langchain/core/utils/testing";
+import { Document } from "@langchain/core/documents";
+
+describe("RAG Chain", () => {
+  test("should retrieve and format documents", async () => {
+    const retriever = new FakeRetriever({
+      output: [
+        new Document({ 
+          pageContent: "LangChain is a framework",
+          metadata: { source: "docs" },
+        }),
+      ],
+    });
+    
+    const docs = await retriever.invoke("What is LangChain?");
+    
+    expect(docs).toHaveLength(1);
+    expect(docs[0].pageContent).toContain("framework");
+    expect(docs[0].metadata.source).toBe("docs");
+  });
+});
+```
+
+## Best Practices
+
+1. **Use Fake Models for Unit Tests**: Don't make actual API calls in unit tests
+2. **Test Edge Cases**: Use `thrownErrorString` to test error handling
+3. **Deterministic Tests**: Use `SyntheticEmbeddings` for reproducible results
+4. **Custom Matchers**: Use LangChain matchers for cleaner assertions
+5. **Test Streaming**: Verify streaming behavior with `FakeStreamingChatModel`
+6. **Mock Responses**: Use `FakeListChatModel` to test conversation flows
+7. **Integration Tests**: Use real models in separate integration test suites
+
+## Related
+
+- [Testing Guide](/guides/testing) - Comprehensive testing strategies
+- [Standard Tests](/api/standard-tests) - Standard test suites for integrations
+- [LangGraph Testing](/langgraph/testing) - Testing stateful agents
+- [Debugging](/guides/debugging) - Debugging LangChain applications

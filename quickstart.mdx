@@ -1,80 +1,486 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Build your first LangChain.js application in minutes
 ---
 
-## Get started in three steps
+# Quickstart
 
-Get your documentation site running locally and make your first customization.
+This guide walks you through building your first LangChain.js application. You'll learn how to:
 
-### Step 1: Set up your local environment
+- Initialize a chat model
+- Create and use prompt templates
+- Chain components together
+- Parse model outputs
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+By the end, you'll have a working LangChain application that can answer questions using an LLM.
+
+## Prerequisites
+
+Make sure you've completed the [Installation](/getting-started/installation) guide and have:
+
+- LangChain.js installed (`langchain`)
+- At least one model provider installed (e.g., `@langchain/openai`)
+- API keys configured in your `.env` file
+
+## Basic Model Invocation
+
+Let's start with the simplest example: invoking a chat model directly.
+
+<Steps>
+  <Step title="Import the chat model">
+    First, import the chat model class from your chosen provider:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    ```typescript
+    import "dotenv/config";
+    import { ChatOpenAI } from "@langchain/openai";
+    ```
+  </Step>
+  
+  <Step title="Initialize the model">
+    Create an instance of the chat model:
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    ```typescript
+    const model = new ChatOpenAI({
+      model: "gpt-4o-mini",
+      temperature: 0,
+    });
+    ```
+  </Step>
+  
+  <Step title="Invoke the model">
+    Call the model with a prompt:
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    ```typescript
+    const response = await model.invoke("What is LangChain?");
+    console.log(response.content);
+    ```
+    
+    The model returns an `AIMessage` object. Access the content with `.content`.
+  </Step>
+</Steps>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+<CodeGroup>
+```typescript Complete Example
+import "dotenv/config";
+import { ChatOpenAI } from "@langchain/openai";
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+const model = new ChatOpenAI({
+  model: "gpt-4o-mini",
+  temperature: 0,
+});
 
-### Step 3: Go live
+const response = await model.invoke("What is LangChain?");
+console.log(response.content);
+// Output: LangChain is a framework for building LLM-powered applications...
+```
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+```typescript With Anthropic
+import "dotenv/config";
+import { ChatAnthropic } from "@langchain/anthropic";
 
-## Next steps
+const model = new ChatAnthropic({
+  model: "claude-3-5-sonnet-20241022",
+  temperature: 0,
+});
 
-Now that you have your docs running, explore these key features:
+const response = await model.invoke("What is LangChain?");
+console.log(response.content);
+```
 
-<CardGroup cols={2}>
+```typescript With Google
+import "dotenv/config";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+const model = new ChatGoogleGenerativeAI({
+  model: "gemini-1.5-pro",
+  temperature: 0,
+});
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+const response = await model.invoke("What is LangChain?");
+console.log(response.content);
+```
+</CodeGroup>
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
+## Using initChatModel
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
+The `initChatModel` function provides a unified way to initialize any chat model. This makes it easy to swap between providers:
 
-</CardGroup>
+```typescript
+import "dotenv/config";
+import { initChatModel } from "langchain/chat_models/universal";
+
+// Initialize with automatic provider inference
+const model = await initChatModel("gpt-4o-mini", {
+  temperature: 0,
+});
+
+// Or explicitly specify the provider
+const anthropicModel = await initChatModel("claude-3-5-sonnet-20241022", {
+  modelProvider: "anthropic",
+  temperature: 0,
+});
+
+// Or use the provider:model format
+const geminiModel = await initChatModel("google-genai:gemini-1.5-pro", {
+  temperature: 0,
+});
+
+const response = await model.invoke("Hello!");
+console.log(response.content);
+```
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  `initChatModel` automatically infers the provider from common model name prefixes (e.g., `gpt-*` → OpenAI, `claude-*` → Anthropic, `gemini-*` → Google Vertex AI).
 </Note>
+
+## Creating a Prompt Template
+
+Prompt templates help you structure and reuse prompts with dynamic variables:
+
+```typescript
+import "dotenv/config";
+import { ChatOpenAI } from "@langchain/openai";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o-mini",
+  temperature: 0,
+});
+
+// Create a prompt template with a system message and user message
+const prompt = ChatPromptTemplate.fromMessages([
+  ["system", "You are a world-class technical documentation writer."],
+  ["user", "{input}"],
+]);
+
+// Use the prompt
+const formattedPrompt = await prompt.invoke({
+  input: "What is LangChain?",
+});
+
+const response = await model.invoke(formattedPrompt);
+console.log(response.content);
+```
+
+## Chaining Components with LCEL
+
+LangChain Expression Language (LCEL) lets you chain components together using the pipe operator:
+
+```typescript
+import "dotenv/config";
+import { ChatOpenAI } from "@langchain/openai";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o-mini",
+  temperature: 0,
+});
+
+const prompt = ChatPromptTemplate.fromMessages([
+  ["system", "You are a world-class technical documentation writer."],
+  ["user", "{input}"],
+]);
+
+const outputParser = new StringOutputParser();
+
+// Chain components together
+const chain = prompt.pipe(model).pipe(outputParser);
+
+// Invoke the chain
+const result = await chain.invoke({
+  input: "What is LangChain?",
+});
+
+console.log(result);
+// Output: LangChain is a framework for building...
+```
+
+<Note>
+  The `StringOutputParser` extracts the string content from the `AIMessage` object, making the output easier to work with.
+</Note>
+
+## Streaming Responses
+
+For better user experience, stream responses as they're generated:
+
+```typescript
+import "dotenv/config";
+import { ChatOpenAI } from "@langchain/openai";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o-mini",
+  temperature: 0,
+});
+
+const prompt = ChatPromptTemplate.fromMessages([
+  ["system", "You are a helpful assistant."],
+  ["user", "{input}"],
+]);
+
+const chain = prompt.pipe(model).pipe(new StringOutputParser());
+
+// Stream the response
+const stream = await chain.stream({
+  input: "Write a short poem about TypeScript.",
+});
+
+for await (const chunk of stream) {
+  process.stdout.write(chunk);
+}
+```
+
+## Building a Complete Example
+
+Let's put it all together with a more realistic example that answers questions about a specific topic:
+
+```typescript app.ts
+import "dotenv/config";
+import { ChatOpenAI } from "@langchain/openai";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+
+// Initialize the model
+const model = new ChatOpenAI({
+  model: "gpt-4o-mini",
+  temperature: 0,
+});
+
+// Create a prompt template
+const prompt = ChatPromptTemplate.fromMessages([
+  [
+    "system",
+    "You are an expert assistant that provides clear, accurate answers about {topic}. " +
+    "Keep your responses concise and informative.",
+  ],
+  ["user", "{question}"],
+]);
+
+// Build the chain
+const chain = prompt.pipe(model).pipe(new StringOutputParser());
+
+// Function to ask questions
+async function askQuestion(topic: string, question: string) {
+  console.log(`\nTopic: ${topic}`);
+  console.log(`Question: ${question}`);
+  console.log("Answer:");
+  
+  const stream = await chain.stream({ topic, question });
+  
+  for await (const chunk of stream) {
+    process.stdout.write(chunk);
+  }
+  
+  console.log("\n" + "=".repeat(80));
+}
+
+// Ask multiple questions
+await askQuestion(
+  "TypeScript",
+  "What are the main benefits of using TypeScript?"
+);
+
+await askQuestion(
+  "LangChain",
+  "How does LangChain help with building LLM applications?"
+);
+
+await askQuestion(
+  "software architecture",
+  "What is the difference between monolithic and microservices architecture?"
+);
+```
+
+Run this example:
+
+```bash
+npx tsx app.ts
+```
+
+## Understanding the Runnable Interface
+
+All LangChain components implement the `Runnable` interface, which provides three main methods:
+
+```typescript
+import { Runnable } from "@langchain/core/runnables";
+
+// Single invocation
+const result = await chain.invoke({ input: "Hello" });
+
+// Batch processing
+const results = await chain.batch([
+  { input: "Hello" },
+  { input: "Hi" },
+  { input: "Hey" },
+]);
+
+// Streaming
+const stream = await chain.stream({ input: "Hello" });
+for await (const chunk of stream) {
+  console.log(chunk);
+}
+```
+
+<CardGroup cols={3}>
+  <Card title="invoke" icon="play">
+    Process a single input and return the complete result
+  </Card>
+  
+  <Card title="batch" icon="layer-group">
+    Process multiple inputs in parallel for better performance
+  </Card>
+  
+  <Card title="stream" icon="water">
+    Stream results as they're generated for responsive UIs
+  </Card>
+</CardGroup>
+
+## Working with Messages
+
+LangChain provides message classes for structured conversations:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import {
+  HumanMessage,
+  AIMessage,
+  SystemMessage,
+} from "@langchain/core/messages";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o-mini",
+});
+
+const messages = [
+  new SystemMessage("You are a helpful assistant."),
+  new HumanMessage("What is the capital of France?"),
+  new AIMessage("The capital of France is Paris."),
+  new HumanMessage("What is its population?"),
+];
+
+const response = await model.invoke(messages);
+console.log(response.content);
+```
+
+<Note>
+  Message history allows the model to maintain context across multiple turns of conversation.
+</Note>
+
+## Error Handling
+
+Always handle potential errors when working with LLMs:
+
+```typescript
+import "dotenv/config";
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({
+  model: "gpt-4o-mini",
+  temperature: 0,
+});
+
+try {
+  const response = await model.invoke("Hello!");
+  console.log(response.content);
+} catch (error) {
+  if (error instanceof Error) {
+    console.error("Error invoking model:", error.message);
+    
+    // Check for specific error types
+    if (error.message.includes("API key")) {
+      console.error("Please check your API key configuration.");
+    } else if (error.message.includes("rate limit")) {
+      console.error("Rate limit exceeded. Please try again later.");
+    }
+  }
+}
+```
+
+## Configuration and Performance
+
+### Temperature
+
+Control randomness in model outputs:
+
+```typescript
+// More deterministic (good for factual responses)
+const deterministicModel = new ChatOpenAI({
+  model: "gpt-4o-mini",
+  temperature: 0,
+});
+
+// More creative (good for creative writing)
+const creativeModel = new ChatOpenAI({
+  model: "gpt-4o-mini",
+  temperature: 0.9,
+});
+```
+
+### Max Tokens
+
+Limit response length:
+
+```typescript
+const model = new ChatOpenAI({
+  model: "gpt-4o-mini",
+  maxTokens: 100, // Limit to 100 tokens
+});
+```
+
+### Timeouts and Retries
+
+```typescript
+const model = new ChatOpenAI({
+  model: "gpt-4o-mini",
+  timeout: 30000, // 30 second timeout
+  maxRetries: 3,  // Retry up to 3 times on failure
+});
+```
+
+## Next Steps
+
+Now that you've built your first LangChain application, explore more advanced topics:
+
+<CardGroup cols={2}>
+  <Card title="Prompt Engineering" icon="wand-magic-sparkles" href="/learn/prompts">
+    Learn advanced techniques for crafting effective prompts
+  </Card>
+  
+  <Card title="Output Parsing" icon="filter" href="/learn/output-parsers">
+    Structure and validate model outputs
+  </Card>
+  
+  <Card title="Retrieval-Augmented Generation" icon="database" href="/learn/rag">
+    Build applications that use external knowledge bases
+  </Card>
+  
+  <Card title="Building Agents" icon="robot" href="/learn/agents">
+    Create autonomous agents that can use tools and make decisions
+  </Card>
+  
+  <Card title="LangSmith Integration" icon="microscope" href="/learn/langsmith">
+    Debug and monitor your LangChain applications
+  </Card>
+  
+  <Card title="Production Deployment" icon="rocket" href="/learn/deployment">
+    Deploy your LangChain apps to production
+  </Card>
+</CardGroup>
+
+## Additional Resources
+
+<CardGroup cols={3}>
+  <Card title="API Reference" icon="code" href="https://api.js.langchain.com">
+    Complete API documentation
+  </Card>
+  
+  <Card title="Example Gallery" icon="images" href="/examples">
+    Browse ready-to-use examples
+  </Card>
+  
+  <Card title="Community Forum" icon="comments" href="https://forum.langchain.com">
+    Get help and share ideas
+  </Card>
+</CardGroup>

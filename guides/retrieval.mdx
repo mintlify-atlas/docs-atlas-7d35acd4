@@ -1,0 +1,694 @@
+---
+title: Retrieval
+description: Learn how to retrieve and use external documents and data in your LangChain.js applications
+---
+
+## Introduction
+
+Retrieval-Augmented Generation (RAG) enhances language models by providing them with relevant information from external sources. This enables:
+
+- Answering questions based on your documents
+- Building chatbots with domain-specific knowledge
+- Reducing hallucinations with factual grounding
+- Working with data beyond the model's training cutoff
+
+LangChain.js provides comprehensive tools for document loading, processing, storage, and retrieval.
+
+## Quick Start
+
+```typescript
+import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { Document } from "@langchain/core/documents";
+
+// Create documents
+const docs = [
+  new Document({
+    pageContent: "LangChain.js is a framework for building LLM applications",
+    metadata: { source: "docs" }
+  }),
+  new Document({
+    pageContent: "It provides tools for prompts, chains, agents, and memory",
+    metadata: { source: "docs" }
+  })
+];
+
+// Create vector store
+const vectorStore = await MemoryVectorStore.fromDocuments(
+  docs,
+  new OpenAIEmbeddings()
+);
+
+// Create retriever
+const retriever = vectorStore.asRetriever({
+  k: 2 // Return top 2 results
+});
+
+// Retrieve relevant documents
+const relevantDocs = await retriever.invoke(
+  "What is LangChain?"
+);
+
+console.log(relevantDocs);
+```
+
+## Document Loading
+
+### Text Documents
+
+```typescript
+import { TextLoader } from "langchain/document_loaders/fs/text";
+
+const loader = new TextLoader("./data/document.txt");
+const docs = await loader.load();
+
+console.log(docs[0].pageContent);
+```
+
+### JSON Documents
+
+```typescript
+import { JSONLoader } from "langchain/document_loaders/fs/json";
+
+const loader = new JSONLoader(
+  "./data/data.json",
+  ["/content"] // JSONPointer to content field
+);
+
+const docs = await loader.load();
+```
+
+### CSV Files
+
+```typescript
+import { CSVLoader } from "langchain/document_loaders/fs/csv";
+
+const loader = new CSVLoader("./data/data.csv");
+const docs = await loader.load();
+
+// Each row becomes a document
+```
+
+### PDF Files
+
+```typescript
+import { PDFLoader } from "langchain/document_loaders/fs/pdf";
+
+const loader = new PDFLoader("./data/document.pdf");
+const docs = await loader.load();
+
+// Each page becomes a document
+```
+
+### Web Pages
+
+```typescript
+import { CheerioWebBaseLoader } from "langchain/document_loaders/web/cheerio";
+
+const loader = new CheerioWebBaseLoader(
+  "https://example.com/article"
+);
+
+const docs = await loader.load();
+```
+
+### Multiple Files
+
+```typescript
+import { DirectoryLoader } from "langchain/document_loaders/fs/directory";
+import { TextLoader } from "langchain/document_loaders/fs/text";
+
+const loader = new DirectoryLoader(
+  "./data",
+  {
+    ".txt": (path) => new TextLoader(path),
+    ".md": (path) => new TextLoader(path)
+  }
+);
+
+const docs = await loader.load();
+```
+
+## Document Transformation
+
+### Text Splitting
+
+Split documents into manageable chunks:
+
+```typescript
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+
+const splitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 1000,        // Characters per chunk
+  chunkOverlap: 200,      // Overlap between chunks
+  separators: ["\n\n", "\n", " ", ""]  // Split on these
+});
+
+const docs = await loader.load();
+const chunks = await splitter.splitDocuments(docs);
+
+console.log(`Split into ${chunks.length} chunks`);
+```
+
+### Code Splitting
+
+Split code while respecting structure:
+
+```typescript
+import { 
+  RecursiveCharacterTextSplitter,
+  Language 
+} from "langchain/text_splitter";
+
+const splitter = RecursiveCharacterTextSplitter.fromLanguage(
+  Language.PYTHON,
+  {
+    chunkSize: 500,
+    chunkOverlap: 50
+  }
+);
+
+const chunks = await splitter.splitDocuments(codeDocs);
+```
+
+### Markdown Splitting
+
+Split markdown documents by headers:
+
+```typescript
+import { MarkdownTextSplitter } from "langchain/text_splitter";
+
+const splitter = new MarkdownTextSplitter({
+  chunkSize: 1000,
+  chunkOverlap: 100
+});
+
+const chunks = await splitter.splitDocuments(markdownDocs);
+```
+
+### Token-Based Splitting
+
+Split by token count:
+
+```typescript
+import { TokenTextSplitter } from "langchain/text_splitter";
+
+const splitter = new TokenTextSplitter({
+  chunkSize: 500,      // Tokens per chunk
+  chunkOverlap: 50,
+  encodingName: "cl100k_base"  // OpenAI's tokenizer
+});
+
+const chunks = await splitter.splitDocuments(docs);
+```
+
+## Vector Stores
+
+### In-Memory Vector Store
+
+For development and small datasets:
+
+```typescript
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+const vectorStore = await MemoryVectorStore.fromDocuments(
+  documents,
+  new OpenAIEmbeddings()
+);
+
+// Search
+const results = await vectorStore.similaritySearch(
+  "query",
+  4  // top 4 results
+);
+```
+
+### Pinecone
+
+Scalable vector database:
+
+```typescript
+import { PineconeStore } from "@langchain/pinecone";
+import { Pinecone } from "@pinecone-database/pinecone";
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+const pinecone = new Pinecone();
+const index = pinecone.Index("my-index");
+
+const vectorStore = await PineconeStore.fromDocuments(
+  documents,
+  new OpenAIEmbeddings(),
+  { pineconeIndex: index }
+);
+
+const results = await vectorStore.similaritySearch("query");
+```
+
+### Supabase
+
+PostgreSQL with pgvector:
+
+```typescript
+import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
+import { createClient } from "@supabase/supabase-js";
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+const client = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_KEY!
+);
+
+const vectorStore = await SupabaseVectorStore.fromDocuments(
+  documents,
+  new OpenAIEmbeddings(),
+  {
+    client,
+    tableName: "documents",
+    queryName: "match_documents"
+  }
+);
+```
+
+### Chroma
+
+Open-source vector database:
+
+```typescript
+import { Chroma } from "@langchain/community/vectorstores/chroma";
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+const vectorStore = await Chroma.fromDocuments(
+  documents,
+  new OpenAIEmbeddings(),
+  {
+    collectionName: "my-collection",
+    url: "http://localhost:8000"
+  }
+);
+```
+
+## Retrievers
+
+### Basic Retriever
+
+```typescript
+const retriever = vectorStore.asRetriever({
+  k: 5,  // Number of results
+  searchType: "similarity"
+});
+
+const docs = await retriever.invoke("What is LangChain?");
+```
+
+### MMR (Maximum Marginal Relevance)
+
+Retrieve diverse results:
+
+```typescript
+const retriever = vectorStore.asRetriever({
+  searchType: "mmr",
+  searchKwargs: {
+    fetchK: 20,      // Fetch 20 candidates
+    lambda: 0.5      // Diversity (0 = max diversity, 1 = min)
+  }
+});
+```
+
+### Similarity Score Threshold
+
+Filter by minimum similarity:
+
+```typescript
+const retriever = vectorStore.asRetriever({
+  searchType: "similarity_score_threshold",
+  searchKwargs: {
+    scoreThreshold: 0.8,  // Minimum similarity score
+    k: 5
+  }
+});
+```
+
+### Custom Retriever
+
+Implement custom retrieval logic:
+
+```typescript
+import { BaseRetriever } from "@langchain/core/retrievers";
+import { Document } from "@langchain/core/documents";
+
+class CustomRetriever extends BaseRetriever {
+  lc_namespace = ["custom", "retrievers"];
+  
+  constructor(private database: Database) {
+    super();
+  }
+  
+  async _getRelevantDocuments(
+    query: string
+  ): Promise<Document[]> {
+    // Your custom retrieval logic
+    const results = await this.database.search(query);
+    
+    return results.map(result => 
+      new Document({
+        pageContent: result.content,
+        metadata: result.metadata
+      })
+    );
+  }
+}
+
+const retriever = new CustomRetriever(database);
+const docs = await retriever.invoke("query");
+```
+
+## RAG Chains
+
+### Basic RAG
+
+Combine retrieval with generation:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { RunnableSequence } from "@langchain/core/runnables";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+
+const prompt = ChatPromptTemplate.fromTemplate(`
+Answer the question based on the following context:
+
+Context: {context}
+
+Question: {question}
+
+Answer:
+`);
+
+const model = new ChatOpenAI({ model: "gpt-4o" });
+
+const chain = RunnableSequence.from([
+  {
+    context: async (input) => {
+      const docs = await retriever.invoke(input.question);
+      return docs.map(doc => doc.pageContent).join("\n\n");
+    },
+    question: (input) => input.question
+  },
+  prompt,
+  model,
+  new StringOutputParser()
+]);
+
+const answer = await chain.invoke({
+  question: "What is LangChain?"
+});
+```
+
+### Conversational RAG
+
+RAG with conversation history:
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { RunnableSequence } from "@langchain/core/runnables";
+
+const contextualizePrompt = ChatPromptTemplate.fromTemplate(`
+Given the chat history and the latest user question,
+formulate a standalone question.
+
+Chat History: {chat_history}
+
+Question: {question}
+
+Standalone question:
+`);
+
+const qaPrompt = ChatPromptTemplate.fromTemplate(`
+Answer the question based on the context:
+
+Context: {context}
+
+Question: {question}
+
+Answer:
+`);
+
+const model = new ChatOpenAI({ model: "gpt-4o" });
+
+const chain = RunnableSequence.from([
+  // Rephrase question with chat history
+  {
+    standalone_question: RunnableSequence.from([
+      contextualizePrompt,
+      model,
+      new StringOutputParser()
+    ]),
+    chat_history: (input) => input.chat_history,
+    question: (input) => input.question
+  },
+  // Retrieve documents
+  {
+    context: async (input) => {
+      const docs = await retriever.invoke(input.standalone_question);
+      return docs.map(doc => doc.pageContent).join("\n\n");
+    },
+    question: (input) => input.standalone_question
+  },
+  // Generate answer
+  qaPrompt,
+  model,
+  new StringOutputParser()
+]);
+
+const answer = await chain.invoke({
+  question: "What is it used for?",
+  chat_history: "Human: Tell me about LangChain\nAI: LangChain is a framework..."
+});
+```
+
+### Multi-Query Retrieval
+
+Generate multiple queries for better coverage:
+
+```typescript
+import { MultiQueryRetriever } from "langchain/retrievers/multi_query";
+import { ChatOpenAI } from "@langchain/openai";
+
+const model = new ChatOpenAI({ model: "gpt-4o" });
+
+const multiQueryRetriever = MultiQueryRetriever.fromLLM({
+  llm: model,
+  retriever: vectorStore.asRetriever(),
+  queryCount: 3  // Generate 3 different queries
+});
+
+const docs = await multiQueryRetriever.invoke(
+  "Tell me about machine learning"
+);
+// Generates variations like:
+// - "What is machine learning?"
+// - "How does ML work?"
+// - "Machine learning applications"
+```
+
+### Parent Document Retriever
+
+Retrieve small chunks but return full documents:
+
+```typescript
+import { ParentDocumentRetriever } from "langchain/retrievers/parent_document";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { InMemoryStore } from "@langchain/core/stores";
+
+const childSplitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 200  // Small chunks for search
+});
+
+const parentSplitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 1000  // Larger parent documents
+});
+
+const retriever = new ParentDocumentRetriever({
+  vectorstore: vectorStore,
+  docstore: new InMemoryStore(),
+  childSplitter,
+  parentSplitter
+});
+
+await retriever.addDocuments(documents);
+
+// Searches small chunks, returns full context
+const docs = await retriever.invoke("query");
+```
+
+## Hybrid Search
+
+Combine vector and keyword search:
+
+```typescript
+import { SupabaseHybridSearch } from "@langchain/community/retrievers/supabase";
+import { createClient } from "@supabase/supabase-js";
+
+const client = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_KEY!
+);
+
+const retriever = new SupabaseHybridSearch(
+  new OpenAIEmbeddings(),
+  {
+    client,
+    similarityK: 5,       // Vector search results
+    keywordK: 5,          // Keyword search results
+    tableName: "documents",
+    similarityQueryName: "match_documents",
+    keywordQueryName: "kw_match_documents"
+  }
+);
+
+const docs = await retriever.invoke("query");
+```
+
+## Metadata Filtering
+
+Filter results by metadata:
+
+```typescript
+import { Document } from "@langchain/core/documents";
+
+const docs = [
+  new Document({
+    pageContent: "Content 1",
+    metadata: { source: "blog", year: 2024 }
+  }),
+  new Document({
+    pageContent: "Content 2",
+    metadata: { source: "docs", year: 2023 }
+  })
+];
+
+const vectorStore = await MemoryVectorStore.fromDocuments(
+  docs,
+  new OpenAIEmbeddings()
+);
+
+// Filter by metadata
+const results = await vectorStore.similaritySearch(
+  "query",
+  4,
+  { source: "blog", year: 2024 }  // Only match these
+);
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Choose Appropriate Chunk Sizes">
+    Balance between context and precision:
+
+    ```typescript
+    // Small chunks (200-500 chars): Precise matching
+    const precisionSplitter = new RecursiveCharacterTextSplitter({
+      chunkSize: 300,
+      chunkOverlap: 50
+    });
+    
+    // Medium chunks (500-1000 chars): Balanced
+    const balancedSplitter = new RecursiveCharacterTextSplitter({
+      chunkSize: 750,
+      chunkOverlap: 100
+    });
+    
+    // Large chunks (1000-2000 chars): More context
+    const contextSplitter = new RecursiveCharacterTextSplitter({
+      chunkSize: 1500,
+      chunkOverlap: 200
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Add Rich Metadata">
+    Include searchable metadata:
+
+    ```typescript
+    const docs = [
+      new Document({
+        pageContent: content,
+        metadata: {
+          source: "documentation",
+          section: "API Reference",
+          version: "2.0",
+          lastUpdated: "2024-01-15",
+          author: "Tech Team",
+          tags: ["api", "reference", "rest"]
+        }
+      })
+    ];
+    ```
+  </Accordion>
+
+  <Accordion title="Implement Caching">
+    Cache embeddings and search results:
+
+    ```typescript
+    import { CacheBackedEmbeddings } from "langchain/embeddings/cache_backed";
+    import { InMemoryStore } from "@langchain/core/stores";
+    
+    const underlyingEmbeddings = new OpenAIEmbeddings();
+    const cacheStore = new InMemoryStore();
+    
+    const cachedEmbeddings = CacheBackedEmbeddings.fromBytesStore(
+      underlyingEmbeddings,
+      cacheStore,
+      { namespace: "openai-embeddings" }
+    );
+    ```
+  </Accordion>
+
+  <Accordion title="Monitor Retrieval Quality">
+    Track retrieval performance:
+
+    ```typescript
+    class MonitoredRetriever extends BaseRetriever {
+      async _getRelevantDocuments(
+        query: string
+      ): Promise<Document[]> {
+        const start = Date.now();
+        const docs = await this.retriever.invoke(query);
+        const latency = Date.now() - start;
+        
+        console.log({
+          query,
+          resultsCount: docs.length,
+          latencyMs: latency,
+          avgScore: docs.reduce((sum, d) => 
+            sum + (d.metadata.score || 0), 0
+          ) / docs.length
+        });
+        
+        return docs;
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Building Agents" icon="robot" href="/guides/building-agents">
+    Add retrieval tools to agents
+  </Card>
+  <Card title="Memory and History" icon="brain" href="/guides/memory-and-history">
+    Combine retrieval with conversation memory
+  </Card>
+  <Card title="Prompt Engineering" icon="wand-magic-sparkles" href="/guides/prompt-engineering">
+    Design better prompts for RAG
+  </Card>
+  <Card title="Working with Chat Models" icon="comments" href="/guides/working-with-chat-models">
+    Use retrieved context with chat models
+  </Card>
+</CardGroup>

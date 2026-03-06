@@ -1,0 +1,259 @@
+---
+title: "Prompts"
+description: "Prompt templates for chat and completion models"
+---
+
+## Overview
+
+Prompt templates help you create reusable, parameterized prompts for language models.
+
+## ChatPromptTemplate
+
+Template for chat models with message roles.
+
+**Import:**
+```typescript
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+```
+
+### Basic Usage
+
+```typescript
+const prompt = ChatPromptTemplate.fromTemplate(
+  "Tell me a joke about {topic}"
+);
+
+const formatted = await prompt.invoke({ topic: "cats" });
+// Returns: [HumanMessage("Tell me a joke about cats")]
+```
+
+### Multiple Messages
+
+```typescript
+const prompt = ChatPromptTemplate.fromMessages([
+  ["system", "You are a helpful assistant that speaks like a {character}"],
+  ["human", "{input}"]
+]);
+
+const messages = await prompt.invoke({
+  character: "pirate",
+  input: "What is the capital of France?"
+});
+```
+
+### MessagesPlaceholder
+
+Insert dynamic message arrays:
+
+```typescript
+import { MessagesPlaceholder } from "@langchain/core/prompts";
+
+const prompt = ChatPromptTemplate.fromMessages([
+  ["system", "You are a helpful assistant"],
+  new MessagesPlaceholder("history"),
+  ["human", "{input}"]
+]);
+
+const messages = await prompt.invoke({
+  history: [
+    new HumanMessage("Hi, my name is Alice"),
+    new AIMessage("Hello Alice!")
+  ],
+  input: "What's my name?"
+});
+```
+
+## PromptTemplate
+
+Template for completion models (text-in, text-out).
+
+```typescript
+import { PromptTemplate } from "@langchain/core/prompts";
+
+const prompt = PromptTemplate.fromTemplate(
+  "Write a {length} poem about {subject}"
+);
+
+const formatted = await prompt.invoke({
+  length: "short",
+  subject: "the ocean"
+});
+// "Write a short poem about the ocean"
+```
+
+## Partial Variables
+
+Set some variables upfront:
+
+```typescript
+const prompt = ChatPromptTemplate.fromTemplate(
+  "Tell me about {topic} in {language}"
+);
+
+const partialPrompt = await prompt.partial({
+  language: "Spanish"
+});
+
+// Now only need to provide topic
+const messages = await partialPrompt.invoke({ topic: "AI" });
+```
+
+## Few-Shot Prompts
+
+Include examples in your prompt:
+
+```typescript
+import { FewShotPromptTemplate } from "@langchain/core/prompts";
+
+const examples = [
+  { input: "happy", output: "sad" },
+  { input: "tall", output: "short" },
+  { input: "hot", output: "cold" }
+];
+
+const examplePrompt = PromptTemplate.fromTemplate(
+  "Input: {input}\nOutput: {output}"
+);
+
+const fewShotPrompt = new FewShotPromptTemplate({
+  examples,
+  examplePrompt,
+  prefix: "Give the antonym of each word:",
+  suffix: "Input: {input}\nOutput:",
+  inputVariables: ["input"]
+});
+
+const result = await fewShotPrompt.invoke({ input: "big" });
+```
+
+## Prompt Composition
+
+Combine prompts:
+
+```typescript
+const systemPrompt = ChatPromptTemplate.fromMessages([
+  ["system", "You are a {role}"]
+]);
+
+const userPrompt = ChatPromptTemplate.fromMessages([
+  ["human", "{input}"]
+]);
+
+const combined = systemPrompt.pipe(userPrompt);
+```
+
+## Using with Models
+
+```typescript
+import { ChatOpenAI } from "@langchain/openai";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+
+const model = new ChatOpenAI();
+const prompt = ChatPromptTemplate.fromTemplate(
+  "Tell me a {adjective} joke about {topic}"
+);
+
+const chain = prompt.pipe(model);
+
+const response = await chain.invoke({
+  adjective: "funny",
+  topic: "programmers"
+});
+```
+
+## Prompt Methods
+
+<ParamField path="invoke" type="method">
+  Format the prompt with variables
+  
+  ```typescript
+  async invoke(values: Record<string, any>): Promise<BaseMessage[]>
+  ```
+</ParamField>
+
+<ParamField path="format" type="method">
+  Format as a string (for PromptTemplate)
+  
+  ```typescript
+  async format(values: Record<string, any>): Promise<string>
+  ```
+</ParamField>
+
+<ParamField path="partial" type="method">
+  Create a new prompt with some variables pre-filled
+  
+  ```typescript
+  async partial(values: Record<string, any>): Promise<PromptTemplate>
+  ```
+</ParamField>
+
+## Template Syntax
+
+### Variable Substitution
+
+```typescript
+const prompt = ChatPromptTemplate.fromTemplate(
+  "Hello {name}, you are {age} years old"
+);
+```
+
+### Conditional Content
+
+```typescript
+const prompt = ChatPromptTemplate.fromTemplate(
+  "User info: {name}{#if premium} (Premium Member){/if}"
+);
+```
+
+## Prompt from File
+
+```typescript
+import { readFileSync } from "fs";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+
+const template = readFileSync("./prompts/assistant.txt", "utf-8");
+const prompt = ChatPromptTemplate.fromTemplate(template);
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use descriptive variable names">
+    Choose variable names that clearly indicate what value should be provided:
+    ```typescript
+    // Good
+    "Summarize the following {article_text}"
+    
+    // Avoid
+    "Summarize the following {text}"
+    ```
+  </Accordion>
+  
+  <Accordion title="Include instructions in system messages">
+    Put behavior instructions in system messages:
+    ```typescript
+    ChatPromptTemplate.fromMessages([
+      ["system", "You are a helpful assistant. Always respond in {language}"],
+      ["human", "{input}"]
+    ])
+    ```
+  </Accordion>
+  
+  <Accordion title="Use MessagesPlaceholder for conversation history">
+    This keeps your prompt flexible:
+    ```typescript
+    new MessagesPlaceholder("chat_history")
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Prompt Engineering Guide" href="/guides/prompt-engineering">
+    Learn prompt engineering best practices
+  </Card>
+  <Card title="Chat Models" href="/api/core/chat-models">
+    Using prompts with chat models
+  </Card>
+</CardGroup>
